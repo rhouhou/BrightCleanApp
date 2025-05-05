@@ -242,3 +242,23 @@ export const applyProductFilters = (products, filters) => {
     );
   });
 };
+
+export const applyMaterialFilters = (materials, filters) => {
+  const {
+    searchName,
+  } = filters;
+
+  // Apply filters
+  return materials.filter((material) => {
+
+    // Check material name filter
+    const matchesName = searchName
+      ? material.materialname.toLowerCase().includes(searchName.toLowerCase())
+      : true;
+
+    // Return true if all filters match
+    return (
+      matchesName
+    );
+  });
+};

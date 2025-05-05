@@ -5,6 +5,8 @@ import productRoutes from "./routes/product.routes.js";
 import saleRoutes from "./routes/sale.routes.js";
 import expenseRoutes from "./routes/expense.routes.js";
 import accountingRoutes from "./routes/accounting.routes.js";
+import materialRoutes from "./routes/material.routes.js";
+import recipeRoutes from "./routes/recipe.routes.js";
 
 dotenv.config();
 
@@ -24,6 +26,8 @@ app.use("/api/products", productRoutes);
 app.use("/api/sales", saleRoutes);
 app.use("/api/expenses", expenseRoutes);
 app.use("/api/accounting", accountingRoutes);
+app.use("/api/materials", materialRoutes);
+app.use("/api/recipes", recipeRoutes);
 
 // Global error handling middleware
 app.use((err, req, res, next) => {

@@ -1,34 +1,33 @@
 import React, { useState, useEffect } from "react";
-import { FaPlus, FaSave, FaMinus, FaSearch, } from "react-icons/fa";
-import DropdownWithAddNew from "../components/DropDownWithAddNew";
-import Pagination from "../components/Pagination";
+import { FaPlus, FaSave, FaMinus, FaSearch } from "react-icons/fa"; // Icons for buttons
 import Filters from "../components/Filters.jsx";
-import { fetchItems, saveEdit, cancelEdit, handleDelete, applyExpenseFilters } from "../utils/generalUtils.js";
-import ItemsTable from "../components/ItemsTable.jsx";
+import Pagination from "../components/Pagination.jsx";
+import {
+  fetchItems,
+  saveEdit,
+  cancelEdit,
+  handleDelete,
+  applyMaterialFilters,
+} from "../utils/generalUtils.js";
+import ItemsTable from "../components/ItemsTable";
 
-const Expenses = () => {
+const Materials = () => {
 
-  const initialExpense = () => ({
-    dateOfExpense: "",
-    category: "",
-    description: "",
-    weightInGrams: "",
-    paidInLL: "",
-    exchangeRate: "",
-    paidInUSD: "",
-    unitPriceInUSD: "",
+  const initialMaterial = () => ({
+    IDmaterial: `MAT-${Date.now()}-${Math.floor(Math.random() * 10000)}`,
+    dateOfPurchase: "",
+    materialname: "",
+    weightInGrams: 0,
+    paidInUSD: 0,
+    unitpriceinUSD: 0,
   });
-  const [newExpense, setNewExpense] = useState(initialExpense());
-  const [expenses, setExpenses] = useState([]);
-  const [loading, setLoading] = useState();
-  const [newExpenses, setNewExpenses] = useState([]); // Array to store multiple new expenses
+
+  const [newMaterial, setNewMaterial] = useState(initialMaterial());
+  const [materials, setMaterials] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [newMaterials, setNewMaterials] = useState([]);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [showValidationError, setShowValidationError] = useState(false);
-  const [categories, setCategories] = useState(["Purchases & Supplies", 
-        "Travel & Transportation", 
-        "Course & Consultation Fees", 
-        "Regular Facility Expenses", 
-        "Irregular Facility Expenses"]);
   const [isFormVisible, setIsFormVisible] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
   const [pagination, setPagination] = useState({
@@ -36,130 +35,110 @@ const Expenses = () => {
     rowsPerPage: 5,
   });
   const [originalItems, setOriginalItems] = useState({});
-  
-  useEffect(() => {
-    const fetchData = async () => {
-      setLoading(true);
-      try {
-        const expensesData = await fetchItems("/api/expenses");
 
-        // Verify the format of the fetched data
-        console.log("Fetched Expenses Data:", expensesData);
-
-        // Assuming expensesData is an array of expense objects
-        setExpenses(
-          expensesData.map((expense) => ({
-            ...expense,
-            isEditing: false,
-          }))
-        );
-      } catch (error) {
-        console.error("Error fetching expenses data:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchData();
-  }, []);
+  // Fetch materials
+ useEffect(() => {
+     const fetchData = async () => {
+       setLoading(true);
+       try {
+         const materialData = await fetchItems("/api/materials");
+         console.log("Fetched Materials Data:", materialData);
+ 
+         setMaterials(
+            materialData.map((material) => ({
+             ...material,
+             isEditing: false,
+           }))
+         );
+       } catch (err) {
+         console.error("Error fetching materials data:", error);
+       } finally {
+         setLoading(false);
+       }
+     };
+     fetchData();
+   }, []);
 
   const toggleFormVisibility = () => {
     setIsFormVisible((prev) => !prev);
   };
 
-  const isValidExpense = (expense) => {
+  const isValidMaterial = (material) => {
     return (
-      expense.dateOfExpense &&
-      expense.category &&
-      expense.description &&
-      expense.weightInGrams &&
-      expense.paidInLL &&
-      expense.exchangeRate &&
-      expense.paidInUSD
+        material.IDmaterial &&
+        material.dateOfPurchase &&
+        material.materialname &&
+        material.weightInGrams &&
+        material.paidInUSD
     );
   };
 
-  const confirmDelete = (idOrIndex, isNewExpense) => {
+  const confirmDelete = (idOrIndex, isNewMaterial) => {
     console.log(
-      `Confirm delete: ID or Index: ${idOrIndex}, isNew: ${isNewExpense}`
+      `Confirm delete: ID or Index: ${idOrIndex}, isNew: ${isNewMaterial}`
     );
-    setDeleteTarget({ idOrIndex, isNewExpense });
+    setDeleteTarget({ idOrIndex, isNewMaterial });
   };
 
+  // Filters
   const [filters, setFilters] = useState({
-    fromDate: "",
-    toDate: "",
-    selectedCategory: "",
     searchName: "",
   });
 
   const handleResetFilters = () => {
     setFilters({
-      fromDate: "",
-      toDate: "",
-      selectedCategory: "",
       searchName: "",
     });
   };
 
-  const expensesFiltersConfig = [
-    { name: "fromDate", label: "From:", type: "date" },
-    { name: "toDate", label: "To:", type: "date" },
-    {
-      name: "selectedCategory",
-      label: "Category",
-      type: "select",
-      options: ["Purchases & Supplies", 
-        "Travel & Transportation", 
-        "Course & Consultation Fees", 
-        "Regular Facility Expenses", 
-        "Irregular Facility Expenses"],
-    },
+  const materialsFiltersConfig = [
     { name: "searchName", label: "Name", type: "search", icon: FaSearch },
   ];
 
-  const filteredExpenses = applyExpenseFilters(expenses, filters);
+  const filteredMaterials = applyMaterialFilters(materials, filters);
 
-  const handleExpenseChange = (fieldName, value) => {
+  // Handle Change, Edit, Save, Cancel, and add functions
+  const handleMaterialChange = (fieldName, value) => {
     console.log(`Updating ${fieldName} with value: ${value}`);
-    setNewExpense((prevExpense) => {
-      const updatedExpense = { ...prevExpense, [fieldName]: value };
-      return updatedExpense;
+    setNewMaterial((prevMaterial) => {
+      const updatedMaterial = { ...prevMaterial, [fieldName]: value };
+      return updatedMaterial;
     });
   };
 
   const handleEditChange = (index, field, value, isNew) => {
     if (isNew) {
-      const updatedNewExpenses = [...newExpenses];
-      updatedNewExpenses[index] = { ...updatedNewExpenses[index], [field]: value };
-      setNewExpenses(updatedNewExpenses);
-    } else {
-      const updatedExpenses = [...expenses];
-      updatedExpenses[index] = { ...updatedExpenses[index], [field]: value };
-      setExpenses(updatedExpenses);
-    }
-  };
+        const updatedNewMaterials = [...newMaterials];
+        updatedNewMaterials[index] = { ...updatedNewMaterials[index], [field]: value };
+        setNewMaterials(updatedNewMaterials);
+      } else {
+        const updatedMaterials = [...materials];
+        updatedMaterials[index] = { ...updatedMaterials[index], [field]: value };
+        setMaterials(updatedMaterials);
+      }
+    };
 
-  const handleSaveEdit = (expense, index, isNew) => {
+  const handleSaveEdit = (material, index, isNew) => {
     saveEdit({
-      item: expense,
+      item: material,
       index,
       isNew,
-      newItems: newExpenses,
-      items: expenses,
-      setItems: setExpenses,
-      setNewItems: setNewExpenses,
-      apiEndpoint: "/api/expenses",
+      newItems: newMaterials,
+      items: materials,
+      setItems: setMaterials,
+      setNewItems: setNewMaterials,
+      apiEndpoint: "/api/materials",
       setSuccessMessage,
     });
   };
 
   const handleToggleEditMode = (index, isNew) => {
     if (isNew) {
-      const updatedNewItems = [...newExpenses];
+      const updatedNewItems = [...newMaterials];
       updatedNewItems[index].isEditing = true;
-      setNewExpenses(updatedNewItems);
+      setNewMaterials(updatedNewItems);
     } else {
-      const updatedItems = [...expenses];
+      const updatedItems = [...materials];
 
       // Save the original value before setting edit mode
       setOriginalItems((prev) => ({
@@ -168,129 +147,106 @@ const Expenses = () => {
       }));
 
       updatedItems[index].isEditing = true;
-      setExpenses(updatedItems);
+      setMaterials(updatedItems);
     }
   };
 
-  const handleAddAndSaveExpense = async () => {
-    const { paidInUSD, weightInGrams  } = newExpense;
+  const handleAddAndSaveMaterial = async () => {
+    const { weightInGrams, paidInUSD } = newMaterial;
     const parsedPaidInUSD = parseFloat(paidInUSD);
     const parsedWeightInGrams = parseFloat(weightInGrams);
 
     if (isNaN(parsedPaidInUSD) || isNaN(parsedWeightInGrams) || parsedWeightInGrams === 0) {
-      console.error("Invalid values for paidInUSD or weightInGrams. Please provide valid numbers.");
-      setShowValidationError(true);
-      return;
+        console.error("Invalid values for paidInUSD or weightInGrams. Please provide valid numbers.");
+        setShowValidationError(true);
+        return;
     }
+  
+    const unitpriceinUSD = (parsedPaidInUSD / parsedWeightInGrams).toFixed(2);
 
-    const unitPriceInUSD = (parsedPaidInUSD / parsedWeightInGrams).toFixed(3);
-
-    const generatedExpense = {
-      ...newExpense,
-      unitPriceInUSD,
-      isNew: true,
-    };
-
-    if (!isValidExpense(generatedExpense)) {
-      console.log(generatedExpense);
-      console.error("Validation failed. Please fill all required fields.");
-      setShowValidationError(true);
-      return;
-    }
+    const generatedMaterial = {
+        ...newMaterial,
+        unitpriceinUSD,
+        isNew: true,
+      };
+  
+      if (!isValidMaterial(generatedMaterial)) {
+        console.log(generatedMaterial);
+        console.error("Validation failed. Please fill all required fields.");
+        setShowValidationError(true);
+        return;
+      }
 
     try {
       // Save to the backend
-      const response = await fetch("/api/expenses", {
+      const response = await fetch("/api/materials", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(generatedExpense),
+        body: JSON.stringify(generatedMaterial),
       });
 
       if (!response.ok) {
-        throw new Error("Failed to save the expense to the backend");
+        throw new Error("Failed to save the material to the backend");
       }
 
-      const savedExpense = await response.json();
+      const savedMaterial = await response.json();
 
-      // Update the save list with the saved expense from the backend
-      setExpenses((prev) => [savedExpense, ...prev]);
+      // Update the save list with the saved material from the backend
+      setMaterials((prev) => [savedMaterial, ...prev]);
 
       // Reset the form
-      setNewExpense({
-        dateOfExpense: "",
-        category: "",
-        description: "",
+      setNewMaterial({
+        IDmaterial: `MAT-${Date.now()}-${Math.floor(Math.random() * 10000)}`,
+        dateOfPurchase: "",
+        materialname: "",
         weightInGrams: "",
-        paidInLL: "",
-        exchangeRate: "",
         paidInUSD: "",
-        unitPriceInUSD: "",
+        unitpriceinUSD: "",
       });
 
       setShowValidationError(false);
       setIsFormVisible(false); // Collapse the form after saving
-      console.log("Expense added and saved successfully:", savedExpense);
+      console.log("Material added and saved successfully:", savedMaterial);
 
       // Optionally show a success message
-      setSuccessMessage("Expense added and saved successfully!");
+      setSuccessMessage("Material added and saved successfully!");
       console.log("Success message:", successMessage);
       setTimeout(() => setSuccessMessage(""), 3000);
     } catch (error) {
-      console.error("Error saving expense:", error.message);
+      console.error("Error saving material:", error.message);
     }
   };
 
-  const expensesColumns = [
+  // Define Columns for Materials
+  const materialsColumns = [
+    { header: "Material ID", accessor: "IDmaterial", isEditable: false },
     {
-      header: "Expense date",
-      accessor: "dateOfExpense",
-      type: "date",
-      isEditable: true,
+        header: "Purchase Date",
+        accessor: "dateOfPurchase",
+        isEditable: true,
+        type: "date",
     },
     {
-      header: "Category",
-      accessor: "category",
-      isEditable: true,
-      type: "select",
-      options: ["Purchases & Supplies", 
-        "Travel & Transportation", 
-        "Course & Consultation Fees", 
-        "Regular Facility Expenses", 
-        "Irregular Facility Expenses"],
-    },
-    {
-      header: "Description",
-      accessor: "description",
+      header: "Material Name",
+      accessor: "materialname",
       isEditable: true,
       type: "text",
     },
     {
-      header: "Weight In Grams",
-      accessor: "weightInGrams",
-      isEditable: true,
-      type: "number",
+        header: "Weight (grams)",
+        accessor: "weightInGrams",
+        isEditable: true,
+        type: "number",
     },
     {
-      header: "Paid in LL",
-      accessor: "paidInLL",
-      isEditable: true,
-      type: "number",
-    },
-    {
-      header: "Exchange Rate",
-      accessor: "exchangeRate",
-      isEditable: true,
-      type: "number",
-    },
-    {
-      header: "Paid ($)",
-      accessor: "paidInUSD",
-      isEditable: true,
-      type: "number",
+        header: "Paid In ($)",
+        accessor: "paidInUSD",
+        isEditable: true,
+        type: "number",
     },
     {
       header: "Unit Price ($)",
-      accessor: "unitPriceInUSD",
+      accessor: "unitpriceinUSD",
       isEditable: true,
       type: "number",
     },
@@ -299,22 +255,22 @@ const Expenses = () => {
   // pagination
   const { currentPage, rowsPerPage } = pagination;
   const startIndex = (currentPage - 1) * rowsPerPage;
-  const paginatedExpenses = filteredExpenses.slice(
+  const paginatedMaterials = filteredMaterials.slice(
     startIndex,
     startIndex + rowsPerPage
   );
 
   return (
     <div>
-      {/*Section 1*/}
+      {/* Section 1 */}
       <div>
         <div>
-          <h1 className="page-title">Expenses Overview</h1>
+          <h1 className="page-title">Materials Overview</h1>
         </div>
 
         {/* Filters */}
         <Filters
-          filtersConfig={expensesFiltersConfig}
+          filtersConfig={materialsFiltersConfig}
           filters={filters}
           setFilters={(updatedFilter) => {
             setFilters((prevFilters) => ({
@@ -326,17 +282,15 @@ const Expenses = () => {
         />
       </div>
 
-
-        {/* Table to display expenses */}
-        <div className="table-panel">
-          <ItemsTable 
-          columns={expensesColumns}
-          items={paginatedExpenses}
+      {/* Table Section */}
+      <div className="table-panel">
+        <ItemsTable
+          columns={materialsColumns}
+          items={paginatedMaterials}
           onEdit={handleEditChange}
-          onDelete={(idOrIndex, isNewExpense) => {
+          onDelete={(idOrIndex, isNewMaterial) => {
             if (idOrIndex !== undefined && idOrIndex !== null) {
-              handleDelete(idOrIndex, isNewExpense, "expenses", setExpenses);
-              setDeleteTarget(null)
+              handleDelete(idOrIndex, isNewMaterial, "materials", setMaterials);
             } else {
               console.error("Delete target is not properly set:", idOrIndex);
             }
@@ -346,27 +300,30 @@ const Expenses = () => {
             cancelEdit({
               index,
               isNew,
-              newItems: newExpenses,
-              setNewItems: setNewExpenses,
-              items: expenses,
-              setItems: setExpenses,
+              newItems: newMaterials,
+              setNewItems: setNewMaterials,
+              items: materials,
+              setItems: setMaterials,
               originalItems,
               setOriginalItems,
             })
           }
           onToggleEditMode={handleToggleEditMode}
         />
-          {/* Pagination */}
-          <Pagination
+
+        {/* Pagination */}
+        <Pagination
           currentPage={pagination.currentPage}
-          totalPages={Math.ceil(filteredExpenses.length / pagination.rowsPerPage)}
+          totalPages={Math.ceil(filteredMaterials.length / pagination.rowsPerPage)}
           onPageChange={(page) =>
             setPagination((prev) => ({ ...prev, currentPage: page }))
           }
         />
       </div>
 
-      {/*Section 2: Add New Expense*/}
+      {/* Section 2: Add New Material */}
+
+      {/* Add New and Close buttons*/}
       <div
         style={{
           margin: "20px auto", // Center the section horizontally
@@ -418,12 +375,11 @@ const Expenses = () => {
           </div>
         )}
 
-        {/* Expense Form */}
-
+        {/* Material Form */}
         {isFormVisible && (
           <div>
             <h1 className="page-title" style={{ marginTop: "5px" }}>
-              Add New Expense
+              Add New Material
             </h1>
 
             <div
@@ -433,16 +389,6 @@ const Expenses = () => {
                 gap: "15px",
               }}
             >
-              <DropdownWithAddNew
-                type="category"
-                options={categories}
-                setOptions={setCategories}
-                selectedOption={newExpense.category}
-                setSelectedOption={(value) =>
-                  setNewExpense((prev) => ({ ...prev, category: value }))
-                }
-              />
-
               <div
                 style={{
                   display: "flex",
@@ -456,15 +402,15 @@ const Expenses = () => {
                 }}
               >
                 <label
-                  htmlFor="dateOfExpense"
+                  htmlFor="IDmaterial"
                   className="text-gray-600"
                   style={{ fontWeight: "bold", margin: "0" }}
                 >
-                  Expense Date:
+                  Material ID:
                 </label>
                 <input
-                  id="dateOfExpense"
-                  type="date"
+                  id="IDmaterial"
+                  type="text"
                   placeholder="Enter Value"
                   style={{
                     outline: "none",
@@ -472,9 +418,9 @@ const Expenses = () => {
                     flex: 1,
                     color: "#888",
                   }}
-                  value={newExpense.dateOfExpense}
+                  value={newMaterial.IDmaterial}
                   onChange={(e) =>
-                    handleExpenseChange("dateOfExpense", e.target.value)
+                    handleMaterialChange("IDmaterial", e.target.value)
                   }
                 />
               </div>
@@ -492,15 +438,15 @@ const Expenses = () => {
                 }}
               >
                 <label
-                  htmlFor="description"
+                  htmlFor="dateOfPurchase"
                   className="text-gray-600"
                   style={{ fontWeight: "bold", margin: "0" }}
                 >
-                  Description:
+                  Purchase Date:
                 </label>
                 <input
-                  id="description"
-                  type="text"
+                  id="dateOfPurchase"
+                  type="date"
                   placeholder="Enter Value"
                   style={{
                     outline: "none",
@@ -508,10 +454,44 @@ const Expenses = () => {
                     flex: 1,
                     color: "#888",
                   }}
-                  value={newExpense.description}
+                  value={newMaterial.dateOfPurchase}
                   onChange={(e) =>
-                    handleExpenseChange("description", e.target.value)
+                    handleMaterialChange("dateOfPurchase", e.target.value)
                   }
+                />
+              </div>
+
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  border: "1px solid #ccc",
+                  borderRadius: "5px",
+                  padding: "10px",
+                  backgroundColor: "#fff",
+                  width: "450px",
+                  gap: "10px",
+                }}
+              >
+                <label
+                  htmlFor="materialname"
+                  className="text-gray-600"
+                  style={{ fontWeight: "bold", margin: "0" }}
+                >
+                  Material Name:
+                </label>
+                <input
+                  id="materialname"
+                  type="text"
+                  placeholder="Enter Text"
+                  style={{
+                    outline: "none",
+                    border: "none",
+                    flex: 1,
+                    color: "#888",
+                  }}
+                  value={newMaterial.materialname}
+                  onChange={(e) => handleMaterialChange("materialname", e.target.value)}
                 />
               </div>
 
@@ -532,7 +512,7 @@ const Expenses = () => {
                   className="text-gray-600"
                   style={{ fontWeight: "bold", margin: "0" }}
                 >
-                  Weight in Grams:
+                  Weight (grams):
                 </label>
                 <input
                   id="weightInGrams"
@@ -544,81 +524,9 @@ const Expenses = () => {
                     flex: 1,
                     color: "#888",
                   }}
-                  value={newExpense.weightInGrams}
+                  value={newMaterial.weightInGrams}
                   onChange={(e) =>
-                    handleExpenseChange("weightInGrams", e.target.value)
-                  }
-                />
-              </div>
-
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  border: "1px solid #ccc",
-                  borderRadius: "5px",
-                  padding: "10px",
-                  backgroundColor: "#fff",
-                  width: "450px",
-                  gap: "10px",
-                }}
-              >
-                <label
-                  htmlFor="paidInLL"
-                  className="text-gray-600"
-                  style={{ fontWeight: "bold", margin: "0" }}
-                >
-                  Paid in LL:
-                </label>
-                <input
-                  id="paidInLL"
-                  type="number"
-                  placeholder="Enter Value"
-                  style={{
-                    outline: "none",
-                    border: "none",
-                    flex: 1,
-                    color: "#888",
-                  }}
-                  value={newExpense.paidInLL}
-                  onChange={(e) =>
-                    handleExpenseChange("paidInLL", e.target.value)
-                  }
-                />
-              </div>
-
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  border: "1px solid #ccc",
-                  borderRadius: "5px",
-                  padding: "10px",
-                  backgroundColor: "#fff",
-                  width: "450px",
-                  gap: "10px",
-                }}
-              >
-                <label
-                  htmlFor="exchangeRate"
-                  className="text-gray-600"
-                  style={{ fontWeight: "bold", margin: "0" }}
-                >
-                  Exchange Rate:
-                </label>
-                <input
-                  id="exchangeRate"
-                  type="number"
-                  placeholder="Enter Value"
-                  style={{
-                    outline: "none",
-                    border: "none",
-                    flex: 1,
-                    color: "#888",
-                  }}
-                  value={newExpense.exchangeRate}
-                  onChange={(e) =>
-                    handleExpenseChange("exchangeRate", e.target.value)
+                    handleMaterialChange("weightInGrams", e.target.value)
                   }
                 />
               </div>
@@ -640,7 +548,7 @@ const Expenses = () => {
                   className="text-gray-600"
                   style={{ fontWeight: "bold", margin: "0" }}
                 >
-                  Paid ($):
+                 Paid In ($):
                 </label>
                 <input
                   id="paidInUSD"
@@ -652,14 +560,10 @@ const Expenses = () => {
                     flex: 1,
                     color: "#888",
                   }}
-                  value={newExpense.paidInUSD}
-                  onChange={(e) =>
-                    handleExpenseChange("paidInUSD", e.target.value)
-                  }
+                  value={newMaterial.paidInUSD}
+                  onChange={(e) => handleMaterialChange("paidInUSD", e.target.value)}
                 />
               </div>
-
-             
             </div>
 
             <div
@@ -682,13 +586,13 @@ const Expenses = () => {
                     color: "red",
                   }}
                 >
-                  Please fill in all required fields before adding the expense.
+                  Please fill in all required fields before adding the material.
                 </div>
               )}
 
               <button
                 className="button-savetb"
-                onClick={handleAddAndSaveExpense}
+                onClick={handleAddAndSaveMaterial}
                 style={{
                   display: "flex",
                   alignItems: "center",
@@ -710,4 +614,4 @@ const Expenses = () => {
   );
 };
 
-export default Expenses;
+export default Materials;

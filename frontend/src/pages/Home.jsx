@@ -1,6 +1,7 @@
 import React from "react";
 import { Link, NavLink } from "react-router-dom";
 import { FaBox, FaChartLine, FaWallet, FaFileInvoiceDollar } from "react-icons/fa";
+import { Tab } from "react-admin";
 
 const Home = () => {
   return (
@@ -9,34 +10,30 @@ const Home = () => {
         {/* Left Column */}
         <div className="left-column">
           <div className="intro-section">
-            <p className="description">
+            {/*<p className="description">
             <span className="text-sky-500"><strong>Bright</strong></span>
             <span className="text-sky-700"><strong>Clean</strong></span> is an in-house web application designed to streamline
               your detergent business operations. It provides a comprehensive
               platform to:
-            </p>
+            </p> */}
             <ul className="feature-list">
               <li>
-              <NavLink to="/product-list"><strong>Manage Products:</strong></NavLink> Add, delete and update product
-                details efficiently.
+              <NavLink to="/product-list"><strong>Products</strong></NavLink>
               </li>
               <li>
-              <NavLink to="/sales"><strong>Track Sales:</strong></NavLink> Log sales transactions for better
-                inventory and revenue tracking.
+              <NavLink to="/sales"><strong>Sales</strong></NavLink>
               </li>
               <li>
-              <NavLink to="/expenses"><strong>Monitor Expenses:</strong></NavLink> Record and categorize
-                business expenses.
+              <NavLink to="/expenses"><strong>Expenses</strong></NavLink>
               </li>
               <li>
-              <NavLink to="/accounting"><strong>Handle Accounting:</strong></NavLink> Simplify financial
-                management with built-in tools.
+              <NavLink to="/accounting"><strong>Accounting</strong></NavLink>
               </li>
             </ul>
-            <p className="conclusion">
+            {/*<p className="conclusion">
               Manage your operations seamlessly with BrightClean,
               ensuring better decision-making and productivity.
-            </p>
+            </p>*/}
           </div>
         </div>
 

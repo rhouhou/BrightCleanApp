@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Link, NavLink } from "react-router-dom";
-import { FaHome, FaBox, FaChartLine, FaWallet, FaFileInvoiceDollar, FaSearch } from "react-icons/fa";
+import { FaHome, FaBox, FaChartLine, FaBoxes, FaWallet, FaFileInvoiceDollar, FaSearch } from "react-icons/fa";
 
 const Header = () => {
   const [searchTerm, setSearchTerm] = useState("");
@@ -73,6 +73,19 @@ const Header = () => {
         <FaWallet size={18} title="Expenses Section"/>
         <span style={{ fontSize: 18 }}>Expenses</span>
         </NavLink>
+
+        <NavLink to="/materials" className="nav-link" 
+        style={({ isActive }) => ({
+          display: "flex",
+          alignItems: "center",
+          gap: "7px",
+          color: isActive ? "#7f8c8d" : "#7dd3fc",
+          textDecoration: "none",
+        })}>
+        <FaBoxes size={18} title="Materials Section"/>
+        <span style={{ fontSize: 18 }}>Materials</span>
+        </NavLink>
+
         <NavLink to="/accounting" className="nav-link" 
         style={({ isActive }) => ({
           display: "flex",

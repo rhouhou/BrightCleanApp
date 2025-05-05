@@ -5,6 +5,8 @@ import Header from "./components/Header";
 import Sales from "./pages/Sales";
 import Expenses from "./pages/Expenses";
 import Accounting from "./pages/Accounting";
+import Materials from "./pages/Materials";
+import Recipes from "./pages/Recipes";
 import './index.css';
 
 const App = () => {
@@ -17,6 +19,8 @@ const App = () => {
         <Route path="/sales" element={<Sales />} />
         <Route path="/expenses" element={<Expenses />} />
         <Route path="/accounting" element={<Accounting />} />
+        <Route path="/materials" element={<Materials />} />
+        <Route path="/recipes" element={<Recipes />} />
       </Routes>
     </BrowserRouter>
   );
