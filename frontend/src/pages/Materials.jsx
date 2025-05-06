@@ -12,14 +12,10 @@ import {
 import ItemsTable from "../components/ItemsTable";
 
 const Materials = () => {
-
   const initialMaterial = () => ({
-    IDmaterial: `MAT-${Date.now()}-${Math.floor(Math.random() * 10000)}`,
-    dateOfPurchase: "",
+    IDmaterial: `${Date.now()}-${Math.floor(Math.random() * 10000)}`,
     materialname: "",
-    weightInGrams: 0,
-    paidInUSD: 0,
-    unitpriceinUSD: 0,
+    priceInGramsInUSD: 0,
   });
 
   const [newMaterial, setNewMaterial] = useState(initialMaterial());
@@ -32,32 +28,32 @@ const Materials = () => {
   const [successMessage, setSuccessMessage] = useState("");
   const [pagination, setPagination] = useState({
     currentPage: 1,
-    rowsPerPage: 5,
+    rowsPerPage: 10,
   });
   const [originalItems, setOriginalItems] = useState({});
 
   // Fetch materials
- useEffect(() => {
-     const fetchData = async () => {
-       setLoading(true);
-       try {
-         const materialData = await fetchItems("/api/materials");
-         console.log("Fetched Materials Data:", materialData);
- 
-         setMaterials(
-            materialData.map((material) => ({
-             ...material,
-             isEditing: false,
-           }))
-         );
-       } catch (err) {
-         console.error("Error fetching materials data:", error);
-       } finally {
-         setLoading(false);
-       }
-     };
-     fetchData();
-   }, []);
+  useEffect(() => {
+    const fetchData = async () => {
+      setLoading(true);
+      try {
+        const materialData = await fetchItems("/api/materials");
+        console.log("Fetched Materials Data:", materialData);
+
+        setMaterials(
+          materialData.map((material) => ({
+            ...material,
+            isEditing: false,
+          }))
+        );
+      } catch (err) {
+        console.error("Error fetching materials data:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchData();
+  }, []);
 
   const toggleFormVisibility = () => {
     setIsFormVisible((prev) => !prev);
@@ -65,11 +61,7 @@ const Materials = () => {
 
   const isValidMaterial = (material) => {
     return (
-        material.IDmaterial &&
-        material.dateOfPurchase &&
-        material.materialname &&
-        material.weightInGrams &&
-        material.paidInUSD
+      material.IDmaterial && material.materialname && material.priceInGramsInUSD
     );
   };
 
@@ -99,24 +91,61 @@ const Materials = () => {
 
   // Handle Change, Edit, Save, Cancel, and add functions
   const handleMaterialChange = (fieldName, value) => {
-    console.log(`Updating ${fieldName} with value: ${value}`);
     setNewMaterial((prevMaterial) => {
       const updatedMaterial = { ...prevMaterial, [fieldName]: value };
+
+      const name =
+        fieldName === "materialname" ? value : updatedMaterial.materialname;
+
+      if (fieldName === "materialname") {
+        const cleaned = value
+          .trim()
+          .toUpperCase()
+          .replace(/[\s()%]+/g, "-")
+          .replace(/-+/g, "-")
+          .replace(/^-|-$/g, "");
+
+        const random = Math.floor(Math.random() * 10000);
+        updatedMaterial.IDmaterial = `${cleaned}-${random}`;
+      }
+
       return updatedMaterial;
     });
   };
 
-  const handleEditChange = (index, field, value, isNew) => {
-    if (isNew) {
-        const updatedNewMaterials = [...newMaterials];
-        updatedNewMaterials[index] = { ...updatedNewMaterials[index], [field]: value };
-        setNewMaterials(updatedNewMaterials);
-      } else {
-        const updatedMaterials = [...materials];
-        updatedMaterials[index] = { ...updatedMaterials[index], [field]: value };
-        setMaterials(updatedMaterials);
+  const handleEditChange = (itemId, field, value, isNew) => {
+    const updateList = isNew ? [...newMaterials] : [...materials];
+    const index = updateList.findIndex(
+        (item) => item._id === itemId || item.IDmaterial === itemId
+      );
+    
+      if (index === -1) {
+        console.error("Could not find item with ID:", itemId);
+        return;
       }
-    };
+    
+      const item = { ...updateList[index], [field]: value };
+    
+      if (field === "materialname") {
+        const cleaned = value
+          .trim()
+          .toUpperCase()
+          .replace(/[\s()%]+/g, "-")
+          .replace(/-+/g, "-")
+          .replace(/^-|-$/g, "");
+    
+        const random = Math.floor(Math.random() * 10000);
+        item.IDmaterial = `${cleaned}-${random}`;
+      }
+
+    updateList[index] = item;
+
+    if (isNew) {
+      setNewMaterials(updateList);
+    } else {
+      setMaterials(updateList);
+    }
+  };
 
   const handleSaveEdit = (material, index, isNew) => {
     saveEdit({
@@ -152,30 +181,35 @@ const Materials = () => {
   };
 
   const handleAddAndSaveMaterial = async () => {
-    const { weightInGrams, paidInUSD } = newMaterial;
-    const parsedPaidInUSD = parseFloat(paidInUSD);
-    const parsedWeightInGrams = parseFloat(weightInGrams);
+    const { materialname } = newMaterial;
 
-    if (isNaN(parsedPaidInUSD) || isNaN(parsedWeightInGrams) || parsedWeightInGrams === 0) {
-        console.error("Invalid values for paidInUSD or weightInGrams. Please provide valid numbers.");
-        setShowValidationError(true);
-        return;
-    }
-  
-    const unitpriceinUSD = (parsedPaidInUSD / parsedWeightInGrams).toFixed(2);
+    const generateMaterialId = (materialname) => {
+      if (!materialname) return ""; // Handle empty material name
+      const cleanName = materialname
+        .trim()
+        .toUpperCase()
+        .replace(/[\s()/%]+/g, "-")
+        .replace(/-+/g, "-")
+        .replace(/^-|-$/g, "");
+
+      const random = Math.floor(Math.random() * 10000);
+      return `${cleanName}-${random}`;
+    };
+
+    const IDmaterial = generateMaterialId(materialname);
 
     const generatedMaterial = {
-        ...newMaterial,
-        unitpriceinUSD,
-        isNew: true,
-      };
-  
-      if (!isValidMaterial(generatedMaterial)) {
-        console.log(generatedMaterial);
-        console.error("Validation failed. Please fill all required fields.");
-        setShowValidationError(true);
-        return;
-      }
+      ...newMaterial,
+      IDmaterial,
+      isNew: true,
+    };
+
+    if (!isValidMaterial(generatedMaterial)) {
+      console.log(generatedMaterial);
+      console.error("Validation failed. Please fill all required fields.");
+      setShowValidationError(true);
+      return;
+    }
 
     try {
       // Save to the backend
@@ -196,12 +230,8 @@ const Materials = () => {
 
       // Reset the form
       setNewMaterial({
-        IDmaterial: `MAT-${Date.now()}-${Math.floor(Math.random() * 10000)}`,
-        dateOfPurchase: "",
         materialname: "",
-        weightInGrams: "",
-        paidInUSD: "",
-        unitpriceinUSD: "",
+        priceInGramsInUSD: "",
       });
 
       setShowValidationError(false);
@@ -219,12 +249,11 @@ const Materials = () => {
 
   // Define Columns for Materials
   const materialsColumns = [
-    { header: "Material ID", accessor: "IDmaterial", isEditable: false },
     {
-        header: "Purchase Date",
-        accessor: "dateOfPurchase",
-        isEditable: true,
-        type: "date",
+      header: "Material ID",
+      accessor: "IDmaterial",
+      type: "text",
+      isEditable: false,
     },
     {
       header: "Material Name",
@@ -233,20 +262,8 @@ const Materials = () => {
       type: "text",
     },
     {
-        header: "Weight (grams)",
-        accessor: "weightInGrams",
-        isEditable: true,
-        type: "number",
-    },
-    {
-        header: "Paid In ($)",
-        accessor: "paidInUSD",
-        isEditable: true,
-        type: "number",
-    },
-    {
-      header: "Unit Price ($)",
-      accessor: "unitpriceinUSD",
+      header: "Price In Grams ($)",
+      accessor: "priceInGramsInUSD",
       isEditable: true,
       type: "number",
     },
@@ -314,7 +331,9 @@ const Materials = () => {
         {/* Pagination */}
         <Pagination
           currentPage={pagination.currentPage}
-          totalPages={Math.ceil(filteredMaterials.length / pagination.rowsPerPage)}
+          totalPages={Math.ceil(
+            filteredMaterials.length / pagination.rowsPerPage
+          )}
           onPageChange={(page) =>
             setPagination((prev) => ({ ...prev, currentPage: page }))
           }
@@ -402,78 +421,6 @@ const Materials = () => {
                 }}
               >
                 <label
-                  htmlFor="IDmaterial"
-                  className="text-gray-600"
-                  style={{ fontWeight: "bold", margin: "0" }}
-                >
-                  Material ID:
-                </label>
-                <input
-                  id="IDmaterial"
-                  type="text"
-                  placeholder="Enter Value"
-                  style={{
-                    outline: "none",
-                    border: "none",
-                    flex: 1,
-                    color: "#888",
-                  }}
-                  value={newMaterial.IDmaterial}
-                  onChange={(e) =>
-                    handleMaterialChange("IDmaterial", e.target.value)
-                  }
-                />
-              </div>
-
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  border: "1px solid #ccc",
-                  borderRadius: "5px",
-                  padding: "10px",
-                  backgroundColor: "#fff",
-                  width: "450px",
-                  gap: "10px",
-                }}
-              >
-                <label
-                  htmlFor="dateOfPurchase"
-                  className="text-gray-600"
-                  style={{ fontWeight: "bold", margin: "0" }}
-                >
-                  Purchase Date:
-                </label>
-                <input
-                  id="dateOfPurchase"
-                  type="date"
-                  placeholder="Enter Value"
-                  style={{
-                    outline: "none",
-                    border: "none",
-                    flex: 1,
-                    color: "#888",
-                  }}
-                  value={newMaterial.dateOfPurchase}
-                  onChange={(e) =>
-                    handleMaterialChange("dateOfPurchase", e.target.value)
-                  }
-                />
-              </div>
-
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  border: "1px solid #ccc",
-                  borderRadius: "5px",
-                  padding: "10px",
-                  backgroundColor: "#fff",
-                  width: "450px",
-                  gap: "10px",
-                }}
-              >
-                <label
                   htmlFor="materialname"
                   className="text-gray-600"
                   style={{ fontWeight: "bold", margin: "0" }}
@@ -491,42 +438,8 @@ const Materials = () => {
                     color: "#888",
                   }}
                   value={newMaterial.materialname}
-                  onChange={(e) => handleMaterialChange("materialname", e.target.value)}
-                />
-              </div>
-
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  border: "1px solid #ccc",
-                  borderRadius: "5px",
-                  padding: "10px",
-                  backgroundColor: "#fff",
-                  width: "450px",
-                  gap: "10px",
-                }}
-              >
-                <label
-                  htmlFor="weightInGrams"
-                  className="text-gray-600"
-                  style={{ fontWeight: "bold", margin: "0" }}
-                >
-                  Weight (grams):
-                </label>
-                <input
-                  id="weightInGrams"
-                  type="number"
-                  placeholder="Enter Value"
-                  style={{
-                    outline: "none",
-                    border: "none",
-                    flex: 1,
-                    color: "#888",
-                  }}
-                  value={newMaterial.weightInGrams}
                   onChange={(e) =>
-                    handleMaterialChange("weightInGrams", e.target.value)
+                    handleMaterialChange("materialname", e.target.value)
                   }
                 />
               </div>
@@ -544,24 +457,28 @@ const Materials = () => {
                 }}
               >
                 <label
-                  htmlFor="paidInUSD"
+                  htmlFor="priceInGramsInUSD"
                   className="text-gray-600"
                   style={{ fontWeight: "bold", margin: "0" }}
                 >
-                 Paid In ($):
+                  Price In Grams ($):
                 </label>
                 <input
-                  id="paidInUSD"
+                  id="priceInGramsInUSD"
                   type="number"
                   placeholder="Enter Value"
+                  step="0.00001"
+                  min="0"
                   style={{
                     outline: "none",
                     border: "none",
                     flex: 1,
                     color: "#888",
                   }}
-                  value={newMaterial.paidInUSD}
-                  onChange={(e) => handleMaterialChange("paidInUSD", e.target.value)}
+                  value={newMaterial.priceInGramsInUSD}
+                  onChange={(e) =>
+                    handleMaterialChange("priceInGramsInUSD", e.target.value)
+                  }
                 />
               </div>
             </div>

@@ -128,14 +128,22 @@ const Expenses = () => {
   };
 
   const handleEditChange = (index, field, value, isNew) => {
+    const updateList = isNew ? [...newExpenses] : [...expenses];
+    const item = { ...updateList[index], [field]: value };
+
+    const paid = parseFloat(item.paidInUSD);
+    const weight = parseFloat(item.weightInGrams);
+
+    if (!isNaN(paid) && !isNaN(weight) && weight !=0){
+      item.unitPriceInUSD = Number((paid / weight).toFixed(5));
+    }
+
+    updateList[index] = item;
+
     if (isNew) {
-      const updatedNewExpenses = [...newExpenses];
-      updatedNewExpenses[index] = { ...updatedNewExpenses[index], [field]: value };
-      setNewExpenses(updatedNewExpenses);
+      setNewExpenses(updateList);
     } else {
-      const updatedExpenses = [...expenses];
-      updatedExpenses[index] = { ...updatedExpenses[index], [field]: value };
-      setExpenses(updatedExpenses);
+      setExpenses(updateList);
     }
   };
 
@@ -183,7 +191,7 @@ const Expenses = () => {
       return;
     }
 
-    const unitPriceInUSD = (parsedPaidInUSD / parsedWeightInGrams).toFixed(3);
+    const unitPriceInUSD = Number((parsedPaidInUSD / parsedWeightInGrams).toFixed(3));
 
     const generatedExpense = {
       ...newExpense,
