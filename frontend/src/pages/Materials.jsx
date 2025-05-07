@@ -20,8 +20,8 @@ const Materials = () => {
 
   const [newMaterial, setNewMaterial] = useState(initialMaterial());
   const [materials, setMaterials] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [newMaterials, setNewMaterials] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [showValidationError, setShowValidationError] = useState(false);
   const [isFormVisible, setIsFormVisible] = useState(false);
@@ -40,13 +40,28 @@ const Materials = () => {
         const materialData = await fetchItems("/api/materials");
         console.log("Fetched Materials Data:", materialData);
 
-        setMaterials(
-          materialData.map((material) => ({
-            ...material,
-            isEditing: false,
-          }))
-        );
-      } catch (err) {
+        const formattedMaterials = materialData.map((material) => ({
+          ...material,
+          isEditing: false,
+        }));
+
+        setMaterials((prevMaterials) => {
+          const updatedMaterials = formattedMaterials.map((mat) => {
+            const prevItem = prevMaterials.find((prev) => prev._id === mat._id);
+            return prevItem ? { ...mat, isEditing: prevItem.isEditing } : mat;
+          });
+
+          // Reset Pagination
+          setPagination((prev) => ({
+            ...prev,
+            totalItems: updatedMaterials.length,
+            totalPages: Math.ceil(updatedMaterials.length / prev.rowsPerPage),
+            currentPage: 1, // Reset to first page
+          }));
+
+          return updatedMaterials;
+        });
+      } catch (error) {
         console.error("Error fetching materials data:", error);
       } finally {
         setLoading(false);
@@ -81,6 +96,7 @@ const Materials = () => {
     setFilters({
       searchName: "",
     });
+    setPagination((prev) => ({ ...prev, currentPage: 1 })); // Reset to first page on filter reset
   };
 
   const materialsFiltersConfig = [
@@ -94,9 +110,6 @@ const Materials = () => {
     setNewMaterial((prevMaterial) => {
       const updatedMaterial = { ...prevMaterial, [fieldName]: value };
 
-      const name =
-        fieldName === "materialname" ? value : updatedMaterial.materialname;
-
       if (fieldName === "materialname") {
         const cleaned = value
           .trim()
@@ -105,46 +118,47 @@ const Materials = () => {
           .replace(/-+/g, "-")
           .replace(/^-|-$/g, "");
 
-        const random = Math.floor(Math.random() * 10000);
-        updatedMaterial.IDmaterial = `${cleaned}-${random}`;
+        const oldSuffix =
+          extractSuffix(prev.IDmaterial) || Math.floor(Math.random() * 10000);
+        updatedMaterial.IDmaterial = `${cleaned}-${oldSuffix}`;
       }
 
       return updatedMaterial;
     });
   };
 
-  const handleEditChange = (itemId, field, value, isNew) => {
+  // Now takes an absolute index directly, never re‐computes page offsets
+  const handleEditChange = (absoluteIndex, field, value, isNew) => {
+    // Pick the full list you’re editing: either newMaterials or materials
     const updateList = isNew ? [...newMaterials] : [...materials];
-    const index = updateList.findIndex(
-        (item) => item._id === itemId || item.IDmaterial === itemId
-      );
-    
-      if (index === -1) {
-        console.error("Could not find item with ID:", itemId);
-        return;
-      }
-    
-      const item = { ...updateList[index], [field]: value };
-    
-      if (field === "materialname") {
-        const cleaned = value
-          .trim()
-          .toUpperCase()
-          .replace(/[\s()%]+/g, "-")
-          .replace(/-+/g, "-")
-          .replace(/^-|-$/g, "");
-    
-        const random = Math.floor(Math.random() * 10000);
-        item.IDmaterial = `${cleaned}-${random}`;
-      }
 
-    updateList[index] = item;
-
-    if (isNew) {
-      setNewMaterials(updateList);
-    } else {
-      setMaterials(updateList);
+    // Grab the target item
+    const itemToEdit = updateList[absoluteIndex];
+    if (!itemToEdit) {
+      console.error("No item at absolute index:", absoluteIndex);
+      return;
     }
+
+    // Make a shallow copy and apply the change
+    const updated = { ...itemToEdit, [field]: value };
+
+    // Special ID‐rebuild logic when renaming
+    if (field === "materialname") {
+      const cleaned = value
+        .trim()
+        .toUpperCase()
+        .replace(/[\s()%]+/g, "-")
+        .replace(/-+/g, "-")
+        .replace(/^-|-$/g, "");
+
+      const oldSuffix =
+        extractSuffix(updated.IDmaterial) || Math.floor(Math.random() * 10000);
+      updated.IDmaterial = `${cleaned}-${oldSuffix}`;
+    }
+
+    // Put it back
+    updateList[absoluteIndex] = updated;
+    isNew ? setNewMaterials(updateList) : setMaterials(updateList);
   };
 
   const handleSaveEdit = (material, index, isNew) => {
@@ -161,22 +175,27 @@ const Materials = () => {
     });
   };
 
-  const handleToggleEditMode = (index, isNew) => {
+  // Also takes an absolute index—no more pageIndex math in here
+  const handleToggleEditMode = (absoluteIndex, isNew) => {
     if (isNew) {
-      const updatedNewItems = [...newMaterials];
-      updatedNewItems[index].isEditing = true;
-      setNewMaterials(updatedNewItems);
+      const updated = [...newMaterials];
+      if (!updated[absoluteIndex])
+        return console.error("No new item at", absoluteIndex);
+      updated[absoluteIndex].isEditing = true;
+      setNewMaterials(updated);
     } else {
-      const updatedItems = [...materials];
+      const updated = [...materials];
+      if (!updated[absoluteIndex])
+        return console.error("No material at", absoluteIndex);
 
-      // Save the original value before setting edit mode
-      setOriginalItems((prev) => ({
-        ...prev,
-        [index]: { ...updatedItems[index] },
+      // stash original before toggling
+      setOriginalItems((o) => ({
+        ...o,
+        [absoluteIndex]: { ...updated[absoluteIndex] },
       }));
 
-      updatedItems[index].isEditing = true;
-      setMaterials(updatedItems);
+      updated[absoluteIndex].isEditing = true;
+      setMaterials(updated);
     }
   };
 
@@ -269,13 +288,95 @@ const Materials = () => {
     },
   ];
 
+  // Grab everything after the final dash as the suffix
+  const extractSuffix = (id) => {
+    const idx = id.lastIndexOf("-");
+    return idx >= 0 ? id.slice(idx + 1) : null;
+  };
+
+  const onPageEdit = (pageIndex, column, value, isNew) => {
+    // 1) which list we’re paging?
+    const activeList = filters.searchName ? filteredMaterials : materials;
+
+    // 2) pick the item in that list
+    const start = (pagination.currentPage - 1) * pagination.rowsPerPage;
+    const activeItem = activeList[start + pageIndex];
+    if (!activeItem) return console.error("No item at pageIndex", pageIndex);
+
+    // 3) find its index in the **full** array
+    const fullList = isNew ? newMaterials : materials;
+    const originalIndex = fullList.findIndex(
+      (m) => m._id === activeItem._id || m.IDmaterial === activeItem.IDmaterial
+    );
+    if (originalIndex === -1)
+      return console.error("Can’t find original item", activeItem);
+
+    // 4) call the core edit function with that index
+    handleEditChange(originalIndex, column, value, isNew);
+  };
+
+  const onPageToggle = (pageIndex, isNew) => {
+    const activeList = filters.searchName ? filteredMaterials : materials;
+    const start = (pagination.currentPage - 1) * pagination.rowsPerPage;
+    const activeItem = activeList[start + pageIndex];
+    const fullList = isNew ? newMaterials : materials;
+    const originalIndex = fullList.findIndex(
+      (m) => m._id === activeItem._id || m.IDmaterial === activeItem.IDmaterial
+    );
+
+    handleToggleEditMode(originalIndex, isNew);
+  };
+
+  const onPageSave = (item, pageIndex, isNew) => {
+    const activeList = filters.searchName ? filteredMaterials : materials;
+    const start = (pagination.currentPage - 1) * pagination.rowsPerPage;
+    const activeItem = activeList[start + pageIndex];
+    const fullList = isNew ? newMaterials : materials;
+    const originalIndex = fullList.findIndex(
+      (m) => m._id === activeItem._id || m.IDmaterial === activeItem.IDmaterial
+    );
+
+    handleSaveEdit(item, originalIndex, isNew);
+  };
+
+  const onPageCancel = (pageIndex, isNew) => {
+    const activeList = filters.searchName ? filteredMaterials : materials;
+    const start = (pagination.currentPage - 1) * pagination.rowsPerPage;
+    const activeItem = activeList[start + pageIndex];
+    const fullList = isNew ? newMaterials : materials;
+    const originalIndex = fullList.findIndex(
+      (m) => m._id === activeItem._id || m.IDmaterial === activeItem.IDmaterial
+    );
+
+    cancelEdit({
+      index: originalIndex,
+      isNew,
+      newItems: newMaterials,
+      setNewItems: setNewMaterials,
+      items: materials,
+      setItems: setMaterials,
+      originalItems,
+      setOriginalItems,
+    });
+  };
+
   // pagination
+  // Calculate active materials
+  console.log("Applying Pagination...");
   const { currentPage, rowsPerPage } = pagination;
+  const activeMaterials = filters.searchName ? filteredMaterials : materials;
+  console.log("Active Materials:", activeMaterials);
+
+  // Calculate the correct start index for the current page
   const startIndex = (currentPage - 1) * rowsPerPage;
-  const paginatedMaterials = filteredMaterials.slice(
+  console.log("Start Index:", startIndex);
+
+  // Slice the active materials based on the current page
+  const paginatedMaterials = activeMaterials.slice(
     startIndex,
     startIndex + rowsPerPage
   );
+  console.log("Paginated Materials:", paginatedMaterials);
 
   return (
     <div>
@@ -304,39 +405,22 @@ const Materials = () => {
         <ItemsTable
           columns={materialsColumns}
           items={paginatedMaterials}
-          onEdit={handleEditChange}
-          onDelete={(idOrIndex, isNewMaterial) => {
-            if (idOrIndex !== undefined && idOrIndex !== null) {
-              handleDelete(idOrIndex, isNewMaterial, "materials", setMaterials);
-            } else {
-              console.error("Delete target is not properly set:", idOrIndex);
-            }
-          }}
-          onSaveEdit={handleSaveEdit}
-          onCancelEdit={(index, isNew) =>
-            cancelEdit({
-              index,
-              isNew,
-              newItems: newMaterials,
-              setNewItems: setNewMaterials,
-              items: materials,
-              setItems: setMaterials,
-              originalItems,
-              setOriginalItems,
-            })
-          }
-          onToggleEditMode={handleToggleEditMode}
+          onToggleEditMode={onPageToggle}
+          onEdit={onPageEdit}
+          onSaveEdit={onPageSave}
+          onCancelEdit={onPageCancel}
         />
 
         {/* Pagination */}
         <Pagination
           currentPage={pagination.currentPage}
           totalPages={Math.ceil(
-            filteredMaterials.length / pagination.rowsPerPage
+            activeMaterials.length / pagination.rowsPerPage
           )}
-          onPageChange={(page) =>
-            setPagination((prev) => ({ ...prev, currentPage: page }))
-          }
+          onPageChange={(page) => {
+            setPagination((prev) => ({ ...prev, currentPage: page }));
+            console.log("Pagination Changed to Page:", page);
+          }}
         />
       </div>
 

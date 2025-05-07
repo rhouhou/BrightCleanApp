@@ -60,7 +60,7 @@ const ItemsTable = ({
                             e.target.value
                           ); // Debugging
                           onEdit(
-                            item._id || item.IDmaterial,
+                            index,
                             column.accessor,
                             e.target.value,
                             item.isNew
@@ -84,7 +84,7 @@ const ItemsTable = ({
                         value={formatDateForInput(item[column.accessor])}
                         onChange={(e) =>
                           onEdit(
-                            item._id || item.IDmaterial,
+                            index,
                             column.accessor,
                             e.target.value,
                             item.isNew
@@ -99,7 +99,7 @@ const ItemsTable = ({
                         value={item[column.accessor] || ""}
                         onChange={(e) =>
                           onEdit(
-                            item._id || item.IDmaterial,
+                            index,
                             column.accessor,
                             e.target.value,
                             item.isNew
@@ -109,7 +109,7 @@ const ItemsTable = ({
                           const formatted = parseFloat(e.target.value);
                           if (!isNaN(formatted)) {
                             onEdit(
-                              item._id || item.IDmaterial,
+                              index,
                               column.accessor,
                               formatted.toFixed(5),
                               item.isNew
@@ -124,7 +124,7 @@ const ItemsTable = ({
                         value={item[column.accessor] || ""}
                         onChange={(e) =>
                           onEdit(
-                            item._id || item.IDmaterial,
+                            index,
                             column.accessor,
                             e.target.value,
                             item.isNew

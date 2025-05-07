@@ -253,7 +253,7 @@ export const applyMaterialFilters = (materials, filters) => {
 
     // Check material name filter
     const matchesName = searchName
-      ? material.materialname.toLowerCase().includes(searchName.toLowerCase())
+      ? material.IDmaterial.toLowerCase().includes(searchName.toLowerCase())
       : true;
 
     // Return true if all filters match

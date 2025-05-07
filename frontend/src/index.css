@@ -608,6 +608,13 @@ h2 {
     padding-top: 100px;
 }
 
+.pagination-ellipsis {
+  display: flex;
+  align-items: center;
+  color: #888;
+  padding: 0 5px;
+}
+
 .add-button,
 .save-button {
     padding: 15px 10px;
