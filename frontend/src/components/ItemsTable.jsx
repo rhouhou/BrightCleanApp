@@ -173,7 +173,10 @@ const ItemsTable = ({
                       </button>
                       <button
                         onClick={() =>
-                          setDeleteTarget({ idOrIndex: item._id || index })
+                          setDeleteTarget({
+                            idOrIndex: item._id || index,
+                            isNew: !!item.isNew,
+                          })
                         }
                         className="button button-delete"
                       >
@@ -196,8 +199,8 @@ const ItemsTable = ({
             <div className="flex justify-end gap-2">
               <button
                 onClick={() => {
-                  onDelete(deleteTarget.idOrIndex);
-                  setDeleteTarget(null); // Close the modal after deletion
+                  onDelete(deleteTarget.idOrIndex, deleteTarget.isNew);
+                  setDeleteTarget(null);
                 }}
                 className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600"
               >

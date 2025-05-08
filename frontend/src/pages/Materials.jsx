@@ -119,7 +119,8 @@ const Materials = () => {
           .replace(/^-|-$/g, "");
 
         const oldSuffix =
-          extractSuffix(prev.IDmaterial) || Math.floor(Math.random() * 10000);
+          extractSuffix(prevMaterial.IDmaterial) ||
+          Math.floor(Math.random() * 10000);
         updatedMaterial.IDmaterial = `${cleaned}-${oldSuffix}`;
       }
 
@@ -409,6 +410,15 @@ const Materials = () => {
           onEdit={onPageEdit}
           onSaveEdit={onPageSave}
           onCancelEdit={onPageCancel}
+          onDelete={(pageIndexOrId, isNew) => {
+            if (isNew) {
+              const updated = [...newMaterials];
+              updated.splice(pageIndexOrId, 1);
+              return setNewMaterials(updated);
+            }
+            handleDelete(pageIndexOrId, false, "materials", setMaterials);
+            setDeleteTarget(null); // Reset delete target after deletion
+          }}
         />
 
         {/* Pagination */}
