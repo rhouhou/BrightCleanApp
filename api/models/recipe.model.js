@@ -3,36 +3,46 @@ import mongoose from "mongoose";
 
 const recipeSchema = new mongoose.Schema(
   {
-    transactions: {
+    name: {
       type: String,
       unique: true,
       required: true,
     },
-    dateOfPurchase: {
-      type: Date,
-      required: true,
+    isFinal: {
+      type: Boolean,
+      default: false,
     },
-    businessType: {
+    productId: {
       type: String,
+      Reference: "Product",
       required: true,
     },
-    productname: {
-      type: String,
-      required: true,
-    },
-    isWithBottle: {
-      type: String,
-      required: true,
-    },
-    quantity: {
+    volumeLitres:{
       type: Number,
       required: true,
     },
-    unitprice: {
-      type: Number,
-      required: true,
-    },
-    totalamount: {
+    ingredients: [
+      {
+        materialId: {
+          type: String,
+          ref: "Material",
+          required: true,
+        },
+        materialname: {
+          type: String,
+          required: true,
+        },
+        quantity: {
+          type: Number,
+          required: true,
+        },
+        totalPrice: {
+          type: Number,
+          required: true,
+        },
+      },
+    ],
+    totalCost: {
       type: Number,
       required: true,
     },

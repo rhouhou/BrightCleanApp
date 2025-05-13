@@ -7,6 +7,7 @@ import Expenses from "./pages/Expenses";
 import Accounting from "./pages/Accounting";
 import Materials from "./pages/Materials";
 import Recipes from "./pages/Recipes";
+import 'bootstrap/dist/css/bootstrap.min.css';
 import './index.css';
 
 const App = () => {

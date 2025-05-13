@@ -1,71 +1,67 @@
 import React, { useState, useEffect } from "react";
-import { FaPlus, FaSave, FaMinus, FaSearch } from "react-icons/fa"; // Icons for buttons
-import DropdownWithAddNew from "../components/DropDownWithAddNew.jsx";
-import Filters from "../components/Filters.jsx";
-import Pagination from "../components/Pagination.jsx";
 import {
-  fetchItems,
-  saveEdit,
-  cancelEdit,
-  handleDelete,
-  applyFilters,
-} from "../utils/generalUtils.js";
-import ItemsTable from "../components/ItemsTable";
+  Container,
+  Row,
+  Col,
+  Card,
+  Form,
+  Table,
+  Button,
+  InputGroup,
+  Pagination,
+  Alert,
+  Spinner,
+  Modal,
+} from "react-bootstrap";
+import { FaPlus, FaTrashAlt, FaSave, FaBookmark } from "react-icons/fa";
+import { fetchItems } from "../utils/generalUtils.js";
+import { PencilSquare, Trash } from "react-bootstrap-icons";
 
-const Sales = () => {
-  const initialSale = () => ({
-    transactions: `TXN-${Date.now()}-${Math.floor(Math.random() * 10000)}`,
-    dateOfPurchase: "",
-    businessType: "",
-    productname: "",
-    isWithBottle: "",
-    quantity: 0,
-    unitprice: 0,
-    totalamount: 0,
+const Recipes = () => {
+  // “new recipe” card state
+  const initialRecipe = () => ({
+    name: "",
+    productId: "",
+    volumeLitres: 1,
+    ingredients: [
+      {
+        materialId: "",
+        materialname: "",
+        quantity: 0,
+        totalPrice: 0,
+      },
+    ],
+    totalCost: 0,
+    isFinal: false,
   });
 
-  const [newSale, setNewSale] = useState(initialSale());
-  const [sales, setSales] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [newSales, setNewSales] = useState([]);
+  const [newRecipe, setNewRecipe] = useState(initialRecipe());
+  const [recipes, setRecipes] = useState([]);
+  const [materials, setMaterials] = useState([]);
   const [products, setProducts] = useState([]);
-  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [loading, setLoading] = useState(true);
   const [showValidationError, setShowValidationError] = useState(false);
-  const [productNames, setProductNames] = useState([]);
-  const [withBottles, setWithBottles] = useState(["yes", "no"]);
-  const [businesstypes, setBusinesstypes] = useState(["B2B", "B2C"]);
-  const [isFormVisible, setIsFormVisible] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
-  const [pagination, setPagination] = useState({
-    currentPage: 1,
-    rowsPerPage: 5,
-  });
-  const [originalItems, setOriginalItems] = useState({});
+  const [editingId, setEditingId] = useState(null);
+  const [editData, setEditData] = useState(initialRecipe());
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [page, setPage] = useState(1);
+  const rowsPerPage = 6;
 
-  // Fetch products and sales
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
       try {
-        const [productData, salesData] = await Promise.all([
+        const [productData, materialData, recipesData] = await Promise.all([
           fetchItems("/api/products"),
-          fetchItems("/api/sales"),
+          fetchItems("/api/materials"),
+          fetchItems("/api/recipes"),
         ]);
 
-        // Verify the format of the fetched data
-        console.log("Fetched Product Data:", productData);
-        console.log("Fetched Sales Data:", salesData);
-
-        // Assuming productData is an array of product objects with a productname property
-        setProductNames(productData.map((product) => product.productname));
         setProducts(productData);
-        setSales(
-          salesData.map((sale) => ({
-            ...sale,
-
-            isEditing: false,
-          }))
-        );
+        setMaterials(materialData);
+        setRecipes(recipesData);
       } catch (error) {
         console.error("Error fetching data:", error);
       } finally {
@@ -75,597 +71,621 @@ const Sales = () => {
     fetchData();
   }, []);
 
-  const toggleFormVisibility = () => {
-    setIsFormVisible((prev) => !prev);
-  };
-
-  const isValidSale = (sale) => {
+  if (loading) {
     return (
-      sale.dateOfPurchase &&
-      sale.businessType &&
-      sale.productname &&
-      sale.isWithBottle !== null &&
-      sale.quantity
+      <Container className="py-5 text-center">
+        <Spinner animation="border" />
+      </Container>
     );
-  };
+  }
 
-  const confirmDelete = (idOrIndex, isNewSale) => {
-    console.log(
-      `Confirm delete: ID or Index: ${idOrIndex}, isNew: ${isNewSale}`
-    );
-    setDeleteTarget({ idOrIndex, isNewSale });
-  };
-
-  // Filters
-  const [filters, setFilters] = useState({
-    fromDate: "",
-    toDate: "",
-    selectedBusinessType: "",
-    selectedIsWithBottle: "",
-    searchName: "",
-  });
-
-  const handleResetFilters = () => {
-    setFilters({
-      fromDate: "",
-      toDate: "",
-      selectedBusinessType: "",
-      selectedIsWithBottle: "",
-      searchName: "",
+  const updateIngredient = (idx, field, value) => {
+    setNewRecipe((prev) => {
+      const updated = { ...prev };
+      updated.ingredients = [...prev.ingredients];
+      updated.ingredients[idx] = {
+        ...updated.ingredients[idx],
+        [field]: value,
+      };
+      return updated;
     });
   };
 
-  const salesFiltersConfig = [
-    { name: "fromDate", label: "From:", type: "date" },
-    { name: "toDate", label: "To:", type: "date" },
-    {
-      name: "selectedBusinessType",
-      label: "Business Type",
-      type: "select",
-      options: ["B2B", "B2C"],
-    },
-    {
-      name: "selectedIsWithBottle",
-      label: "With Bottle",
-      type: "select",
-      options: ["yes", "no"],
-    },
-    { name: "searchName", label: "Name", type: "search", icon: FaSearch },
-  ];
-
-  const filteredSales = applyFilters(sales, filters);
-
-  // Handle Change, Edit, Save, Cancel, and add functions
-  const handleSaleChange = (fieldName, value) => {
-    console.log(`Updating ${fieldName} with value: ${value}`);
-    setNewSale((prevSale) => {
-      const updatedSale = { ...prevSale, [fieldName]: value };
-
-      console.log("Updated Sale:", updatedSale);
-
-      // Update unit price if productname or isWithBottle changes
-      if (fieldName === "productname" || fieldName === "isWithBottle") {
-        const selectedProduct = products.find(
-          (product) => product.productname === updatedSale.productname
-        );
-        console.log("Selected Product:", selectedProduct);
-
-        if (selectedProduct) {
-          updatedSale.unitprice =
-            updatedSale.isWithBottle === "yes" ||
-            updatedSale.isWithBottle === "no"
-              ? selectedProduct.sellPriceLLwithBottle
-              : selectedProduct.sellPriceLLwithoutBottle;
-
-          // Debug: Log updated unitprice
-          console.log("Updated Unit Price:", updatedSale.unitprice);
-        }
-      }
-
-      // Recalculate total amount if quantity, unitprice, or isWithBottle changes
-      if (["quantity", "unitprice"].includes(fieldName)) {
-        const quantity = parseFloat(updatedSale.quantity) || 0;
-        const unitprice = parseFloat(updatedSale.unitprice) || 0;
-        updatedSale.totalamount = (quantity * unitprice).toFixed(2);
-      }
-
-      return updatedSale;
-    });
+  const addIngredientRow = () => {
+    setNewRecipe((prev) => ({
+      ...prev,
+      ingredients: [
+        ...prev.ingredients,
+        { materialId: "", materialname: "", quantity: 0, totalPrice: 0 },
+      ],
+      totalCost: prev.ingredients
+        .reduce((sum, ing) => sum + ing.totalPrice, 0)
+        .toFixed(2),
+    }));
   };
 
-  const handleEditChange = (index, field, value, isNew) => {
-    if (isNew) {
-      const updatedNewSales = [...newSales];
-      updatedNewSales[index] = { ...updatedNewSales[index], [field]: value };
-
-      // Recalculate dependent fields for new sales
-      if (field === "isWithBottle" || field === "productname") {
-        const selectedProduct = products.find(
-          (product) =>
-            product.productname === updatedNewSales[index].productname
-        );
-        if (selectedProduct) {
-          updatedNewSales[index].unitprice =
-            value === "yes"
-              ? selectedProduct.sellPriceLLwithBottle
-              : selectedProduct.sellPriceLLwithoutBottle;
-        }
-      }
-      // Recalculate totalamount when quantity, unitprice, or isWithBottle changes
-      if (["quantity", "unitprice", "isWithBottle"].includes(field)) {
-        const quantity = parseFloat(updatedNewSales[index].quantity) || 0;
-        const unitprice = parseFloat(updatedNewSales[index].unitprice) || 0;
-        updatedNewSales[index].totalamount = (quantity * unitprice).toFixed(2);
-      }
-
-      setNewSales(updatedNewSales);
-    } else {
-      const updatedSales = [...sales];
-      updatedSales[index] = { ...updatedSales[index], [field]: value };
-
-      // Recalculate dependent fields for existing sales
-      if (field === "isWithBottle" || field === "productname") {
-        const selectedProduct = products.find(
-          (product) => product.productname === updatedSales[index].productname
-        );
-        if (selectedProduct) {
-          updatedSales[index].unitprice =
-            value === "yes"
-              ? selectedProduct.sellPriceLLwithBottle
-              : selectedProduct.sellPriceLLwithoutBottle;
-        }
-      }
-      if (["quantity", "unitprice", "isWithBottle"].includes(field)) {
-        const quantity = parseFloat(updatedSales[index].quantity) || 0;
-        const unitprice = parseFloat(updatedSales[index].unitprice) || 0;
-        updatedSales[index].totalamount = (quantity * unitprice).toFixed(2);
-      }
-
-      setSales(updatedSales);
-    }
-  };
-
-  const handleSaveEdit = (sale, index, isNew) => {
-    saveEdit({
-      item: sale,
-      index,
-      isNew,
-      newItems: newSales,
-      items: sales,
-      setItems: setSales,
-      setNewItems: setNewSales,
-      apiEndpoint: "/api/sales",
-      setSuccessMessage,
-    });
-  };
-
-  const handleToggleEditMode = (index, isNew) => {
-    if (isNew) {
-      const updatedNewItems = [...newSales];
-      updatedNewItems[index].isEditing = true;
-      setNewSales(updatedNewItems);
-    } else {
-      const updatedItems = [...sales];
-
-      // Save the original value before setting edit mode
-      setOriginalItems((prev) => ({
+  const removeIngredientRow = (idx) => {
+    setNewRecipe((prev) => {
+      const updatedIngs = prev.ingredients.filter((_, i) => i !== idx);
+      return {
         ...prev,
-        [index]: { ...updatedItems[index] },
-      }));
+        ingredients: updatedIngs,
+        totalCost: updatedIngs
+          .reduce((sum, ing) => sum + ing.totalPrice, 0)
+          .toFixed(2),
+      };
+    });
+  };
+  // Compute costs
+  const costPerLitre = newRecipe.ingredients.reduce(
+    (sum, ing) => sum + ing.totalPrice,
+    0
+  );
+  const costForVolume = costPerLitre * newRecipe.volumeLitres;
+  // compute pagination
+  const totalPages = Math.ceil(recipes.length / rowsPerPage);
+  const startIdx = (page - 1) * rowsPerPage;
+  const currentRecipes = recipes.slice(startIdx, startIdx + rowsPerPage);
 
-      updatedItems[index].isEditing = true;
-      setSales(updatedItems);
+  const handleStartEdit = (recipe) => {
+    setEditingId(recipe._id);
+    setEditData({
+      name: recipe.name,
+      productId: recipe.productId,
+      ingredients: recipe.ingredients.map((i) => ({ ...i })),
+      totalCost: recipe.totalCost,
+      isFinal: recipe.isFinal,
+    });
+  };
+  const handleCancelEdit = () => setEditingId(null);
+
+  const updateEditField = (idx, field, value) => {
+    setEditData((prev) => {
+      const list = [...prev.ingredients];
+      list[idx] = { ...list[idx], [field]: value };
+      return { ...prev, ingredients: list };
+    });
+  };
+
+  const handleSaveEdit = async (id) => {
+    // calculate new totalCost
+    const totalCost = editData.ingredients.reduce(
+      (sum, i) => sum + i.totalPrice,
+      0
+    );
+    const payload = { ...editData, totalCost };
+    try {
+      const res = await fetch(`/api/recipes/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) throw new Error("Update failed");
+      const updated = await res.json();
+      setRecipes((prev) => prev.map((r) => (r._id === id ? updated : r)));
+      setEditingId(null);
+    } catch (err) {
+      console.error(err);
+      alert(err.message);
     }
   };
 
-  const handleAddAndSaveSale = async () => {
-    const { productname, isWithBottle, quantity } = newSale;
-
-    const selectedProduct = products.find(
-      (product) => product.productname === productname
-    );
-
-    if (!selectedProduct) {
-      console.error("Product not found. Please select a valid product.");
-      setShowValidationError(true);
-      return;
-    }
-
-    // Calculate unitprice based on isWithBottle
-    const unitprice =
-      isWithBottle === "yes" || isWithBottle === "no"
-        ? selectedProduct.sellPriceLLwithBottle
-        : selectedProduct.sellPriceLLwithoutBottle;
-
-    const generatedSale = {
-      ...newSale,
-      unitprice: unitprice,
-      totalamount: (quantity * unitprice).toFixed(2),
-      isNew: true,
-    };
-
-    if (!isValidSale(generatedSale)) {
-      console.log(generatedSale);
-      console.error("Validation failed. Please fill all required fields.");
-      setShowValidationError(true);
-      return;
-    }
-
+  const handleToggleFinal = async (id) => {
+    const recipe = recipes.find((r) => r._id === id);
     try {
-      // Save to the backend
-      const response = await fetch("/api/sales", {
+      const res = await fetch(`/api/recipes/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isFinal: !recipe.isFinal }),
+      });
+      if (!res.ok) throw new Error("Toggle final failed");
+      const updated = await res.json();
+      setRecipes((prev) => prev.map((r) => (r._id === id ? updated : r)));
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const saveNewRecipe = async () => {
+    const { name, productId, volumeLitres, ingredients } = newRecipe;
+    const validIngs = ingredients.filter(
+      (ing) => ing.materialId && ing.quantity > 0
+    );
+    if (!name.trim() || !productId || validIngs.length === 0) {
+      setShowValidationError(true);
+      setTimeout(() => setShowValidationError(false), 3000);
+      return;
+    }
+
+    const formattedIngs = validIngs.map((ing) => ({
+      materialId: ing.materialId,
+      materialname: ing.materialname,
+      quantity: ing.quantity,
+      totalPrice: ing.totalPrice,
+    }));
+    const payload = {
+      name: name.trim(),
+      productId,
+      ingredients: formattedIngs,
+      totalCost: costPerLitre,
+      isFinal: false,
+      volumeLitres,
+      totalForVolume: costForVolume,
+    };
+    try {
+      const res = await fetch("/api/recipes", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(generatedSale),
+        body: JSON.stringify(payload),
       });
-
-      if (!response.ok) {
-        throw new Error("Failed to save the sale to the backend");
-      }
-
-      const savedSale = await response.json();
-
-      // Update the save list with the saved sale from the backend
-      setSales((prev) => [savedSale, ...prev]);
-
-      // Reset the form
-      setNewSale({
-        transactions: `TXN-${Date.now()}-${Math.floor(Math.random() * 10000)}`,
-        dateOfPurchase: "",
-        businessType: "",
-        productname: "",
-        isWithBottle: "",
-        quantity: "",
-        unitprice: "",
-        totalamount: "",
-      });
-
-      setShowValidationError(false);
-      setIsFormVisible(false); // Collapse the form after saving
-      console.log("Sale added and saved successfully:", savedSale);
-
-      // Optionally show a success message
-      setSuccessMessage("Sale added and saved successfully!");
-      console.log("Success message:", successMessage);
+      if (!res.ok) throw new Error("Save failed");
+      const saved = await res.json();
+      setRecipes((prev) => [saved, ...prev]);
+      setSuccessMessage("Recipe saved successfully!");
       setTimeout(() => setSuccessMessage(""), 3000);
-    } catch (error) {
-      console.error("Error saving sale:", error.message);
+      setNewRecipe(initialRecipe());
+    } catch (err) {
+      console.error(err);
+      alert(err.message);
     }
   };
 
-  // Define Columns for Sales
-  const salesColumns = [
-    { header: "Transactions", accessor: "transactions", isEditable: false },
-    {
-      header: "Date of Purchase",
-      accessor: "dateOfPurchase",
-      type: "date",
-      isEditable: true,
-    },
-    {
-      header: "Business Type",
-      accessor: "businessType",
-      isEditable: true,
-      type: "select",
-      options: ["B2B", "B2C"],
-    },
-    {
-      header: "Product Name",
-      accessor: "productname",
-      isEditable: true,
-      type: "text",
-    },
-    {
-      header: "With Bottle",
-      accessor: "isWithBottle",
-      isEditable: true,
-      type: "select",
-      options: ["yes", "no"],
-    },
-    {
-      header: "Quantity",
-      accessor: "quantity",
-      isEditable: true,
-      type: "number",
-    },
-    {
-      header: "Unit Price",
-      accessor: "unitprice",
-      isEditable: false,
-      type: "number",
-    },
-    {
-      header: "Total Amount",
-      accessor: "totalamount",
-      isEditable: false,
-      type: "number",
-    },
-  ];
+  const handleDelete = async () => {
+    try {
+      const response = await fetch(`/api/recipes/${deleteTarget}`, {
+        method: "DELETE",
+      });
+      if (!response.ok) throw new Error("Delete failed");
 
-  // pagination
-  const { currentPage, rowsPerPage } = pagination;
-  const startIndex = (currentPage - 1) * rowsPerPage;
-  const paginatedSales = filteredSales.slice(
-    startIndex,
-    startIndex + rowsPerPage
-  );
+      setRecipes((prev) =>
+        prev.filter((recipe) => recipe._id !== deleteTarget)
+      );
+      setDeleteTarget(null);
+      setShowDeleteModal(false);
+    } catch (err) {
+      console.error(err);
+      alert("Could not delete recipe");
+    }
+  };
 
   return (
-    <div>
-      {/* Section 1 */}
-      <div>
-        <div>
-          <h1 className="page-title">Sales Overview</h1>
-        </div>
+    <Container className="py-4">
+      <h1 className="page-title">Recipes Overview</h1>
+      {showValidationError && (
+        <Alert variant="danger">Please fill out all required fields.</Alert>
+      )}
+      {successMessage && <Alert variant="success">{successMessage}</Alert>}
 
-        {/* Filters */}
-        <Filters
-          filtersConfig={salesFiltersConfig}
-          filters={filters}
-          setFilters={(updatedFilter) => {
-            setFilters((prevFilters) => ({
-              ...prevFilters,
-              ...updatedFilter,
-            }));
-          }}
-          onResetFilters={handleResetFilters}
-        />
-      </div>
-
-      {/* Table Section */}
-      <div className="table-panel">
-        <ItemsTable
-          columns={salesColumns}
-          items={paginatedSales}
-          onEdit={handleEditChange}
-          onDelete={(idOrIndex, isNewSale) => {
-            if (idOrIndex !== undefined && idOrIndex !== null) {
-              handleDelete(idOrIndex, isNewSale, "sales", setSales);
-            } else {
-              console.error("Delete target is not properly set:", idOrIndex);
+      {/* Filter by product */}
+      <Form.Group as={Row} className="align-items-center mb-4">
+        <Form.Label column sm="2">
+          Filter by product:
+        </Form.Label>
+        <Col sm="6">
+          <Form.Select
+            value={newRecipe.productId}
+            onChange={(e) =>
+              setNewRecipe((prev) => ({ ...prev, productId: e.target.value }))
             }
-          }}
-          onSaveEdit={handleSaveEdit}
-          onCancelEdit={(index, isNew) =>
-            cancelEdit({
-              index,
-              isNew,
-              newItems: newSales,
-              setNewItems: setNewSales,
-              items: sales,
-              setItems: setSales,
-              originalItems,
-              setOriginalItems,
-            })
-          }
-          onToggleEditMode={handleToggleEditMode}
-        />
-
-        {/* Pagination */}
-        <Pagination
-          currentPage={pagination.currentPage}
-          totalPages={Math.ceil(filteredSales.length / pagination.rowsPerPage)}
-          onPageChange={(page) =>
-            setPagination((prev) => ({ ...prev, currentPage: page }))
-          }
-        />
-      </div>
-
-      {/* Section 2: Add New Sale */}
-
-      {/* Add New and Close buttons*/}
-      <div
-        style={{
-          margin: "20px auto", // Center the section horizontally
-          maxWidth: "95%", // Aligns with table width
-          display: "flex",
-          flexDirection: "column", // Stack elements vertically
-          gap: "15px", // Adds space between button and table
-        }}
-      >
-        <button
-          className={`button button-add ${isFormVisible ? "close" : "add"}`}
-          onClick={toggleFormVisibility}
-        >
-          {isFormVisible ? (
-            <>
-              <FaMinus style={{ fontSize: "18px" }} />
-              <span style={{ fontSize: "18px", fontWeight: "bold" }}>
-                Close
-              </span>
-            </>
-          ) : (
-            <>
-              <FaPlus style={{ fontSize: "18px" }} />
-              <span style={{ fontSize: "18px", fontWeight: "bold" }}>
-                Add New
-              </span>
-            </>
-          )}
-        </button>
-
-        {/* Success Message */}
-        {successMessage && (
-          <div
-            className="mb-4 p-2 bg-green-200 text-green-700 rounded-lg text-center"
-            style={{
-              width: "400px",
-              marginLeft: "300px", // Add space between the button and the message
-              marginTop: "5px",
-              padding: "10px 15px",
-              gap: "5px",
-              backgroundColor: "#d4edda", // Success green background
-              color: "#155724", // Success green text
-              borderRadius: "5px",
-              fontSize: "16px",
-              textAlign: "center",
-            }}
           >
-            {successMessage}
-          </div>
-        )}
+            <option value="">Select product</option>
+            {products.map((p) => (
+              <option key={p._id} value={p._id}>
+                {p.productId}
+              </option>
+            ))}
+          </Form.Select>
+        </Col>
+      </Form.Group>
 
-        {/* Sale Form */}
-        {isFormVisible && (
-          <div>
-            <h1 className="page-title" style={{ marginTop: "5px" }}>
-              Add New Sale
-            </h1>
-
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "1fr 1fr 1fr",
-                gap: "15px",
-              }}
+      {/* ── NEW RECIPE CARD ─────────────────────────────────────── */}
+      <Card className="mb-4 border-primary">
+        <Card.Header>
+          <strong>Add New Recipe</strong>
+        </Card.Header>
+        <Card.Body>
+          <Form.Group className="mb-3" controlId="newRecipeName">
+            <Form.Label>Recipe Name</Form.Label>
+            <Form.Control
+              type="text"
+              value={newRecipe.name}
+              placeholder="Enter recipe name"
+              onChange={(e) =>
+                setNewRecipe((prev) => ({ ...prev, name: e.target.value }))
+              }
+            />
+          </Form.Group>
+          <Form.Group className="mb-3" controlId="newRecipeProduct">
+            <Form.Label>Choose Product ID</Form.Label>
+            <Form.Select
+              value={newRecipe.productId}
+              onChange={(e) =>
+                setNewRecipe((prev) => ({ ...prev, productId: e.target.value }))
+              }
             >
-              <DropdownWithAddNew
-                type="productname"
-                options={productNames}
-                setOptions={setProductNames}
-                selectedOption={newSale.productname}
-                setSelectedOption={(value) =>
-                  setNewSale((prev) => ({ ...prev, productname: value }))
-                }
-              />
+              <option value="">Select product</option>
+              {products.map((p) => (
+                <option key={p._id} value={p._id}>
+                  {p.productId}
+                </option>
+              ))}
+            </Form.Select>
+          </Form.Group>
 
-              <DropdownWithAddNew
-                type="businesstype"
-                options={businesstypes}
-                setOptions={setBusinesstypes}
-                selectedOption={newSale.businessType}
-                setSelectedOption={(value) =>
-                  setNewSale((prev) => ({ ...prev, businessType: value }))
+          <Form.Group className="mb-3">
+            <Form.Label className="d-block text-center mb-3">Ingredients</Form.Label>
+            <Form.Group className="mb-2" controlId="newRecipeVolume">
+              <Form.Label>Volume to Cook (L)</Form.Label>
+              <Form.Control
+                type="number"
+                value={newRecipe.volumeLitres}
+                min={0.1}
+                step={0.1}
+                onChange={(e) =>
+                  setNewRecipe((prev) => ({
+                    ...prev,
+                    volumeLitres: Number(e.target.value) || 1,
+                  }))
                 }
+                style={{ maxWidth: "200px" }}
               />
+            </Form.Group>
+            {/* Column headers */}
+            <Row className="mb-2 gx-3 align-items-center">
+              <Col xs={3} className="text-center">
+                <strong>Materials</strong>
+              </Col>
+              <Col xs={2} className="text-center">
+                <strong>Qty/L (g)</strong>
+              </Col>
+              <Col xs={2} className="text-center">
+                <strong>Cost/L ($)</strong>
+              </Col>
+              <Col xs={2} className="text-center">
+                <strong>Qty/Vm (g)</strong>
+              </Col>
+              <Col xs={2} className="text-center">
+                <strong>Cost/Vm ($)</strong>
+              </Col>
+              <Col xs={1} />
+            </Row>
+            {/* Rows */}
+            {newRecipe.ingredients.map((ing, idx) => {
+              const qtyPerL = ing.quantity;
+              const costPerL = ing.totalPrice;
+              const qtyForVol = qtyPerL * newRecipe.volumeLitres;
+              const costForVol = costPerL * newRecipe.volumeLitres;
+              return (
+                <Row className="mb-2 gx-2 align-items-center" key={idx}>
+                  <Col xs={3} className="text-center">
+                    <Form.Select
+                      value={ing.materialId}
+                      onChange={(e) => {
+                        const mat = materials.find(
+                          (m) => m._id === e.target.value
+                        );
+                        updateIngredient(idx, "materialId", e.target.value);
+                        updateIngredient(idx, "materialname", mat.materialname);
+                        updateIngredient(
+                          idx,
+                          "totalPrice",
+                          ing.quantity * (mat.priceInGramsInUSD || 0)
+                        );
+                      }}
+                    >
+                      <option value="">Select material</option>
+                      {materials.map((m) => (
+                        <option key={m._id} value={m._id}>
+                          {m.materialname}
+                        </option>
+                      ))}
+                    </Form.Select>
+                  </Col>
+                  <Col xs={2} className="text-center">
+                    <Form.Control
+                      type="number"
+                      value={ing.quantity}
+                      onChange={(e) => {
+                        const q = Number(e.target.value) || 0;
+                        const mat = materials.find(
+                          (m) => m._id === ing.materialId
+                        );
+                        const price = mat ? mat.priceInGramsInUSD : 0;
+                        updateIngredient(idx, "quantity", q);
+                        updateIngredient(idx, "totalPrice", q * price);
+                      }}
+                    />
+                  </Col>
+                  <Col xs={2} className="text-center">
+                    <Form.Control readOnly value={costPerL.toFixed(2)} />
+                  </Col>
+                  <Col xs={2} className="text-center">
+                    <Form.Control readOnly value={qtyForVol.toFixed(2)} />
+                  </Col>
+                  <Col xs={2} className="text-center">
+                    <Form.Control readOnly value={costForVol.toFixed(2)} />
+                  </Col>
+                  <Col xs={1} xs="auto">
+                    {newRecipe.ingredients.length > 1 && (
+                      <Button
+                        variant="outline-danger"
+                        size="sm"
+                        onClick={() => removeIngredientRow(idx)}
+                      >
+                        <FaTrashAlt />
+                      </Button>
+                    )}
+                  </Col>
+                </Row>
+              );
+            })}
+          </Form.Group>
 
-              <DropdownWithAddNew
-                type="iswithBottle"
-                options={withBottles}
-                setOptions={setWithBottles}
-                selectedOption={newSale.isWithBottle}
-                setSelectedOption={(value) =>
-                  setNewSale((prev) => ({ ...prev, isWithBottle: value }))
-                }
-              />
-
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  border: "1px solid #ccc",
-                  borderRadius: "5px",
-                  padding: "10px",
-                  backgroundColor: "#fff",
-                  width: "450px",
-                  gap: "10px",
-                }}
-              >
-                <label
-                  htmlFor="dateOfPurchase"
-                  className="text-gray-600"
-                  style={{ fontWeight: "bold", margin: "0" }}
-                >
-                  Date of Purchase:
-                </label>
-                <input
-                  id="dateOfPurchase"
-                  type="date"
-                  placeholder="Enter Value"
-                  style={{
-                    outline: "none",
-                    border: "none",
-                    flex: 1,
-                    color: "#888",
-                  }}
-                  value={newSale.dateOfPurchase}
-                  onChange={(e) =>
-                    handleSaleChange("dateOfPurchase", e.target.value)
-                  }
-                />
+          <div className="d-flex justify-content-between align-items-center mb-3">
+            <Button
+              variant="outline-success"
+              onClick={addIngredientRow}
+              className="d-inline-flex align-items-center"
+            >
+              <FaPlus className="me-2" /> Add Row
+            </Button>
+            <div style={{ textAlign: "right" }}>
+              <div>
+                <strong>Cost /1L:</strong> ${costPerLitre.toFixed(2)}
               </div>
-
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  border: "1px solid #ccc",
-                  borderRadius: "5px",
-                  padding: "10px",
-                  backgroundColor: "#fff",
-                  width: "450px",
-                  gap: "10px",
-                }}
-              >
-                <label
-                  htmlFor="quantity"
-                  className="text-gray-600"
-                  style={{ fontWeight: "bold", margin: "0" }}
-                >
-                  Quantity:
-                </label>
-                <input
-                  id="quantity"
-                  type="number"
-                  placeholder="Enter Value"
-                  style={{
-                    outline: "none",
-                    border: "none",
-                    flex: 1,
-                    color: "#888",
-                  }}
-                  value={newSale.quantity}
-                  onChange={(e) => handleSaleChange("quantity", e.target.value)}
-                />
+              <div>
+                <strong>Cost /{newRecipe.volumeLitres}L:</strong> $
+                {costForVolume.toFixed(2)}
               </div>
             </div>
+          </div>
+        </Card.Body>
+        <Card.Footer className="text-end">
+          <Button
+            variant="primary"
+            onClick={saveNewRecipe}
+            className="d-inline-flex align-items-center"
+          >
+            <FaSave className="me-2" /> Save Recipe
+          </Button>
+        </Card.Footer>
+      </Card>
 
-            <div
-              className="actions-buttons"
-              style={{
-                display: "flex",
-                flexDirection: "row",
-                justifyContent: "flex-end",
-                gap: "5px",
-                marginRight: "15px",
-              }}
-            >
-              {showValidationError && (
-                <div
-                  className="error-message"
+      {/* ── RECIPES LIST ──────────────────────────────────────── */}
+      <h2 className="mb-3">All Recipes</h2>
+      <Row xs={3} className="g-4">
+        {currentRecipes.map((recipe) => (
+          <Col key={recipe._id} className="d-flex">
+            <Card className="h-100 w-100">
+              <Card.Header className="d-flex justify-content-between align-items-center">
+                <span>{recipe.name}</span>
+                <FaBookmark
+                  size={20}
                   style={{
-                    textAlign: "center",
-                    margin: "0",
-                    fontSize: "16px",
-                    color: "red",
+                    cursor: "pointer",
+                    color: recipe.isFinal ? "gold" : "grey",
                   }}
-                >
-                  Please fill in all required fields before adding the sale.
-                </div>
+                  onClick={() => handleToggleFinal(recipe._id)}
+                />
+              </Card.Header>
+              {editingId === recipe._id ? (
+                <>
+                  <Card.Body>
+                    {/* inline edit form (reuse existing edit UI) */}
+                    <Form.Group className="mb-3">
+                      <Form.Label>Name</Form.Label>
+                      <Form.Control
+                        type="text"
+                        value={editData.name}
+                        onChange={(e) =>
+                          setEditData((prev) => ({
+                            ...prev,
+                            name: e.target.value,
+                          }))
+                        }
+                      />
+                    </Form.Group>
+                    <Form.Group className="mb-3">
+                      <Form.Label>Product</Form.Label>
+                      <Form.Select
+                        disabled
+                        value={editData.productId}
+                        onChange={(e) =>
+                          setEditData((prev) => ({
+                            ...prev,
+                            productId: e.target.value,
+                          }))
+                        }
+                      >
+                        <option value="">Select product</option>
+                        {products.map((p) => (
+                          <option key={p._id} value={p._id}>
+                            {p.productId}
+                          </option>
+                        ))}
+                      </Form.Select>
+                    </Form.Group>
+                    {editData.ingredients.map((ing, idx) => (
+                      <InputGroup
+                        className="mb-2"
+                        key={idx}
+                        style={{ alignItems: "center" }}
+                      >
+                        <Form.Select
+                          value={ing.materialname}
+                          onChange={(e) => {
+                            const matId = e.target.value;
+                            const price =
+                              materials.find((m) => m._id === matId)
+                                ?.priceInGramsInUSD || 0;
+                            updateEditField(idx, "materialname", matId);
+                            updateEditField(idx, "quantity", 0);
+                            updateEditField(idx, "totalPrice", 0);
+                          }}
+                        >
+                          <option value="">Select material</option>
+                          {materials.map((m) => (
+                            <option key={m._id} value={m._id}>
+                              {m.materialname}
+                            </option>
+                          ))}
+                        </Form.Select>
+                        <Form.Control
+                          type="number"
+                          placeholder="Qty g"
+                          value={ing.quantity}
+                          onChange={(e) => {
+                            const q = +e.target.value;
+                            const price =
+                              materials.find((m) => m._id === ing.materialname)
+                                ?.priceInGramsInUSD || 0;
+                            updateEditField(idx, "quantity", q);
+                            updateEditField(idx, "totalPrice", q * price);
+                          }}
+                          style={{ maxWidth: "100px" }}
+                        />
+                        <InputGroup.Text>g</InputGroup.Text>
+                        <Form.Control
+                          type="number"
+                          readOnly
+                          value={ing.totalPrice.toFixed(2)}
+                          style={{ maxWidth: "80px" }}
+                        />
+                        {editData.ingredients.length > 1 && (
+                          <Button
+                            variant="outline-danger"
+                            onClick={() => {
+                              const newIngs = editData.ingredients.filter(
+                                (_, i) => i !== idx
+                              );
+                              setEditData((prev) => ({
+                                ...prev,
+                                ingredients: newIngs,
+                              }));
+                            }}
+                          >
+                            <FaTrashAlt />
+                          </Button>
+                        )}
+                      </InputGroup>
+                    ))}
+                  </Card.Body>
+
+                  <Card.Footer className="d-flex justify-content-end gap-2">
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={handleCancelEdit}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      onClick={() => handleSaveEdit(recipe._id)}
+                    >
+                      Save
+                    </Button>
+                  </Card.Footer>
+                </>
+              ) : (
+                <Card.Body>
+                  <p>
+                    <strong>Product:</strong>{" "}
+                    {products.find((p) => p._id === recipe.productId)
+                      ?.productname || "—"}
+                  </p>
+                  <Table size="sm" className="table-fixed w-100">
+                    <thead>
+                      <tr>
+                        <th>Material</th>
+                        <th>Qty (g)</th>
+                        <th>Price</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {recipe.ingredients.map((ing, i) => (
+                        <tr key={i}>
+                          <td>{ing.materialname}</td>
+                          <td>{ing.quantity}</td>
+                          <td>${ing.totalPrice.toFixed(2)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </Table>
+                </Card.Body>
               )}
+              {editingId !== recipe._id && (
+                <Card.Footer className="d-flex justify-content-between align-items-center">
+                  <div>
+                    <div>
+                      <strong>Cost /L:</strong> ${recipe.totalCost.toFixed(2)}
+                    </div>
+                    {recipe.volumeLitres != null && (
+                      <div>
+                        <strong>Cost /{recipe.volumeLitres}L:</strong> $
+                        {(recipe.totalCost * recipe.volumeLitres).toFixed(2)}
+                      </div>
+                    )}
+                  </div>
+                  <div className="d-flex gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline-secondary"
+                      onClick={() => handleStartEdit(recipe)}
+                    >
+                      <PencilSquare />
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline-danger"
+                      onClick={() => {
+                        setDeleteTarget(recipe._id);
+                        setShowDeleteModal(true);
+                      }}
+                    >
+                      <Trash />
+                    </Button>
+                  </div>
+                </Card.Footer>
+              )}
+            </Card>
+          </Col>
+        ))}
+      </Row>
 
-              <button
-                className="button-savetb"
-                onClick={handleAddAndSaveSale}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: "5px",
-                  padding: "10px 10px",
-                }}
-              >
-                <FaSave style={{ fontSize: "18px" }} />
-                <span style={{ fontSize: "18px", fontWeight: "bold" }}>
-                  Save
-                </span>
-              </button>
-            </div>
-          </div>
-        )}
+      {/* Pagination Controls */}
+      <div className="d-flex justify-content-center mt-4">
+        <Pagination>
+          {[...Array(totalPages)].map((_, i) => (
+            <Pagination.Item
+              key={i + 1}
+              active={i + 1 === page}
+              onClick={() => setPage(i + 1)}
+            >
+              {i + 1}
+            </Pagination.Item>
+          ))}
+        </Pagination>
       </div>
-    </div>
+
+      {/* Delete Modal */}
+      <Modal show={showDeleteModal} onHide={() => setShowDeleteModal(false)}>
+        <Modal.Header closeButton>
+          <Modal.Title>Confirm Delete</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>Delete this recipe?</Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={() => setShowDeleteModal(false)}>
+            Cancel
+          </Button>
+          <Button variant="danger" onClick={handleDelete}>
+            Delete
+          </Button>
+        </Modal.Footer>
+      </Modal>
+    </Container>
   );
 };
 
-export default Sales;
+export default Recipes;

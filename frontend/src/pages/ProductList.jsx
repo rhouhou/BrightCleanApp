@@ -42,7 +42,6 @@ const ProductList = () => {
     "Apple",
     "Lavender",
     "Bubble",
-    "test",
   ]);
   const [colors, setColors] = useState([
     "Red",
@@ -134,7 +133,7 @@ const ProductList = () => {
       name: "selectedScent",
       label: "Scent",
       type: "select",
-      options: [ "Amarij", "Apple", "Lavender", "Bubble", "test",],
+      options: [ "Amarij", "Apple", "Lavender", "Bubble",],
     },
     {
       name: "selectedColor",
@@ -332,8 +331,7 @@ const ProductList = () => {
       options: [ "Amarij",
         "Apple",
         "Lavender",
-        "Bubble",
-        "test",],
+        "Bubble",],
     },
     {
       header: "Color",
