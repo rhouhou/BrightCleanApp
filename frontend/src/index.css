@@ -6,6 +6,25 @@
 /* Base Button */
 /* General Styles */
 
+/* index.css */
+.form-check-input {
+  --bs-form-check-input-checked-bg: gold !important;
+  --bs-form-check-input-checked-border: gold !important;
+  --bs-form-check-input-focus-box-shadow: 0 0 0 0.2rem rgba(255,215,0,0.25) !important;
+}
+.form-check-input:checked {
+  background-color: gold !important;
+  border-color: gold !important;
+}
+.form-check-input {
+  --bs-form-check-input-bg: #fff !important;
+  --bs-form-check-input-border: #6c757d !important;
+}
+.form-check-input:not(:checked) {
+  background-color: #fff !important;
+  border-color: #6c757d !important;
+}
+
 
 /* Table Styles */
 table {

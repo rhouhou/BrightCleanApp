@@ -12,9 +12,13 @@ const recipeSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    isArchived: {
+      type: Boolean,
+      default: false,
+    },
     productId: {
-      type: String,
-      Reference: "Product",
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Product",
       required: true,
     },
     volumeLitres:{

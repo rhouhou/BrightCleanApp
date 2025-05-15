@@ -13,9 +13,19 @@ import {
   Spinner,
   Modal,
 } from "react-bootstrap";
-import { FaPlus, FaTrashAlt, FaSave, FaBookmark } from "react-icons/fa";
+import {
+  FaPlus,
+  FaTrashAlt,
+  FaSave,
+  FaFlag,
+  FaHourglassHalf,
+  FaCheckCircle,
+  FaArchive,
+} from "react-icons/fa";
+import { FiMaximize2, FiMinimize2 } from "react-icons/fi";
 import { fetchItems } from "../utils/generalUtils.js";
 import { PencilSquare, Trash } from "react-bootstrap-icons";
+import { set } from "mongoose";
 
 const Recipes = () => {
   // “new recipe” card state
@@ -42,10 +52,17 @@ const Recipes = () => {
   const [loading, setLoading] = useState(true);
   const [showValidationError, setShowValidationError] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
-  const [editingId, setEditingId] = useState(null);
+  const [recipeFilter, setRecipeFilter] = useState("");
+
+  // Edit modal state
+  const [showEditModal, setShowEditModal] = useState(false);
   const [editData, setEditData] = useState(initialRecipe());
+
+  const [expandedId, setExpandedId] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showArchived, setShowArchived] = useState(false);
+  const [showFinal, setShowFinal] = useState(false);
   const [page, setPage] = useState(1);
   const rowsPerPage = 6;
 
@@ -58,7 +75,6 @@ const Recipes = () => {
           fetchItems("/api/materials"),
           fetchItems("/api/recipes"),
         ]);
-
         setProducts(productData);
         setMaterials(materialData);
         setRecipes(recipesData);
@@ -122,53 +138,6 @@ const Recipes = () => {
     0
   );
   const costForVolume = costPerLitre * newRecipe.volumeLitres;
-  // compute pagination
-  const totalPages = Math.ceil(recipes.length / rowsPerPage);
-  const startIdx = (page - 1) * rowsPerPage;
-  const currentRecipes = recipes.slice(startIdx, startIdx + rowsPerPage);
-
-  const handleStartEdit = (recipe) => {
-    setEditingId(recipe._id);
-    setEditData({
-      name: recipe.name,
-      productId: recipe.productId,
-      ingredients: recipe.ingredients.map((i) => ({ ...i })),
-      totalCost: recipe.totalCost,
-      isFinal: recipe.isFinal,
-    });
-  };
-  const handleCancelEdit = () => setEditingId(null);
-
-  const updateEditField = (idx, field, value) => {
-    setEditData((prev) => {
-      const list = [...prev.ingredients];
-      list[idx] = { ...list[idx], [field]: value };
-      return { ...prev, ingredients: list };
-    });
-  };
-
-  const handleSaveEdit = async (id) => {
-    // calculate new totalCost
-    const totalCost = editData.ingredients.reduce(
-      (sum, i) => sum + i.totalPrice,
-      0
-    );
-    const payload = { ...editData, totalCost };
-    try {
-      const res = await fetch(`/api/recipes/${id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      if (!res.ok) throw new Error("Update failed");
-      const updated = await res.json();
-      setRecipes((prev) => prev.map((r) => (r._id === id ? updated : r)));
-      setEditingId(null);
-    } catch (err) {
-      console.error(err);
-      alert(err.message);
-    }
-  };
 
   const handleToggleFinal = async (id) => {
     const recipe = recipes.find((r) => r._id === id);
@@ -197,18 +166,24 @@ const Recipes = () => {
       return;
     }
 
+    const prod = products.find((p) => p._id === newRecipe.productId);
+    const code = prod ? prod.productId : newRecipe.productId;
+    // now build a name using the human‐readable code
+    const fullName = `${newRecipe.name.trim()}_productID:${code}`;
+
     const formattedIngs = validIngs.map((ing) => ({
       materialId: ing.materialId,
       materialname: ing.materialname,
       quantity: ing.quantity,
       totalPrice: ing.totalPrice,
     }));
+
     const payload = {
-      name: name.trim(),
+      name: fullName,
       productId,
       ingredients: formattedIngs,
       totalCost: costPerLitre,
-      isFinal: false,
+      isFinal: newRecipe.isFinal,
       volumeLitres,
       totalForVolume: costForVolume,
     };
@@ -230,23 +205,92 @@ const Recipes = () => {
     }
   };
 
+  // Handlers for edit modal
+  const handleStartEdit = (recipe) => {
+    setEditData({ ...recipe });
+    setShowEditModal(true);
+  };
+  const handleCloseEdit = () => setShowEditModal(false);
+
+  const updateEditField = (idx, field, value) => {
+    setEditData((prev) => {
+      const ingredients = [...prev.ingredients];
+      ingredients[idx] = { ...ingredients[idx], [field]: value };
+      return { ...prev, ingredients };
+    });
+  };
+  const addEditRow = () => {
+    setEditData((prev) => ({
+      ...prev,
+      ingredients: [
+        ...prev.ingredients,
+        { materialId: "", materialname: "", quantity: 0, totalPrice: 0 },
+      ],
+    }));
+  };
+  const removeEditRow = (idx) => {
+    setEditData((prev) => ({
+      ...prev,
+      ingredients: prev.ingredients.filter((_, i) => i !== idx),
+    }));
+  };
+  const handleSaveEdit = async () => {
+    const { _id, name, productId, volumeLitres, ingredients } = editData;
+    const validIngs = ingredients.filter(
+      (ing) => ing.materialId && ing.quantity > 0
+    );
+    const totalCost = validIngs.reduce((sum, i) => sum + i.totalPrice, 0);
+    const payload = {
+      name,
+      productId,
+      volumeLitres,
+      ingredients: validIngs,
+      totalCost,
+      isFinal: editData.isFinal,
+      isArchived: editData.isArchived,
+    };
+    try {
+      const res = await fetch(`/api/recipes/${_id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) throw new Error("Update failed");
+      const updated = await res.json();
+      setRecipes((prev) => prev.map((r) => (r._id === _id ? updated : r)));
+      handleCloseEdit();
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   const handleDelete = async () => {
     try {
-      const response = await fetch(`/api/recipes/${deleteTarget}`, {
-        method: "DELETE",
-      });
-      if (!response.ok) throw new Error("Delete failed");
-
-      setRecipes((prev) =>
-        prev.filter((recipe) => recipe._id !== deleteTarget)
-      );
-      setDeleteTarget(null);
+      await fetch(`/api/recipes/${deleteTarget}`, { method: "DELETE" });
+      setRecipes((prev) => prev.filter((r) => r._id !== deleteTarget));
       setShowDeleteModal(false);
     } catch (err) {
       console.error(err);
-      alert("Could not delete recipe");
     }
   };
+
+  const filtered = recipes.filter((r) => {
+    const nameMatch = r.name.toLowerCase().includes(recipeFilter.toLowerCase());
+    if (showArchived) {
+      // only archived
+      return nameMatch && r.isArchived;
+    }
+    if (showFinal) {
+      // only final (and not archived)
+      return nameMatch && r.isFinal && !r.isArchived;
+    }
+    // WIP (default): neither final nor archived
+    return nameMatch && !r.isFinal && !r.isArchived;
+  });
+  // compute pagination
+  const totalPages = Math.ceil(filtered.length / rowsPerPage);
+  const startIdx = (page - 1) * rowsPerPage;
+  const currentRecipes = filtered.slice(startIdx, startIdx + rowsPerPage);
 
   return (
     <Container className="py-4">
@@ -256,66 +300,60 @@ const Recipes = () => {
       )}
       {successMessage && <Alert variant="success">{successMessage}</Alert>}
 
-      {/* Filter by product */}
-      <Form.Group as={Row} className="align-items-center mb-4">
-        <Form.Label column sm="2">
-          Filter by product:
-        </Form.Label>
-        <Col sm="6">
-          <Form.Select
-            value={newRecipe.productId}
-            onChange={(e) =>
-              setNewRecipe((prev) => ({ ...prev, productId: e.target.value }))
-            }
-          >
-            <option value="">Select product</option>
-            {products.map((p) => (
-              <option key={p._id} value={p._id}>
-                {p.productId}
-              </option>
-            ))}
-          </Form.Select>
-        </Col>
-      </Form.Group>
-
       {/* ── NEW RECIPE CARD ─────────────────────────────────────── */}
       <Card className="mb-4 border-primary">
-        <Card.Header>
+        <Card.Header className="bg-primary text-white">
           <strong>Add New Recipe</strong>
         </Card.Header>
         <Card.Body>
-          <Form.Group className="mb-3" controlId="newRecipeName">
-            <Form.Label>Recipe Name</Form.Label>
-            <Form.Control
-              type="text"
-              value={newRecipe.name}
-              placeholder="Enter recipe name"
-              onChange={(e) =>
-                setNewRecipe((prev) => ({ ...prev, name: e.target.value }))
-              }
-            />
+          <Form.Group as={Row} className="mb-3" controlId="newRecipeName">
+            <Form.Label column sm="2" className="text-end">
+              Recipe Name:
+            </Form.Label>
+            <Col sm="10">
+              <Form.Control
+                type="text"
+                value={newRecipe.name}
+                placeholder="Enter recipe name"
+                onChange={(e) =>
+                  setNewRecipe((prev) => ({ ...prev, name: e.target.value }))
+                }
+              />
+            </Col>
           </Form.Group>
-          <Form.Group className="mb-3" controlId="newRecipeProduct">
-            <Form.Label>Choose Product ID</Form.Label>
-            <Form.Select
-              value={newRecipe.productId}
-              onChange={(e) =>
-                setNewRecipe((prev) => ({ ...prev, productId: e.target.value }))
-              }
-            >
-              <option value="">Select product</option>
-              {products.map((p) => (
-                <option key={p._id} value={p._id}>
-                  {p.productId}
-                </option>
-              ))}
-            </Form.Select>
+          <Form.Group as={Row} className="mb-3" controlId="newRecipeProduct">
+            <Form.Label column sm="2" className="text-end">
+              Choose Product:
+            </Form.Label>
+            <Col sm="10">
+              <Form.Select
+                value={newRecipe.productId}
+                onChange={(e) =>
+                  setNewRecipe((prev) => ({
+                    ...prev,
+                    productId: e.target.value,
+                  }))
+                }
+              >
+                <option value="">Select product</option>
+                {products.map((p) => (
+                  <option key={p._id} value={p._id}>
+                    {p.productId}
+                  </option>
+                ))}
+              </Form.Select>
+            </Col>
           </Form.Group>
 
-          <Form.Group className="mb-3">
-            <Form.Label className="d-block text-center mb-3">Ingredients</Form.Label>
-            <Form.Group className="mb-2" controlId="newRecipeVolume">
-              <Form.Label>Volume to Cook (L)</Form.Label>
+          <Form.Group
+            as={Row}
+            className="mb-2 align-items-center"
+            controlId="newRecipeVolume"
+          >
+            <Form.Label column sm="2" className="text-end">
+              Batch Size (L)
+            </Form.Label>
+            <Col sm={3}>
               <Form.Control
                 type="number"
                 value={newRecipe.volumeLitres}
@@ -329,7 +367,31 @@ const Recipes = () => {
                 }
                 style={{ maxWidth: "200px" }}
               />
-            </Form.Group>
+            </Col>
+            <Col sm={3} />
+            <Form.Label column sm="2" className="text-end">
+              Final Recipe
+            </Form.Label>
+            <Col sm={2}>
+              <Form.Check
+                inline
+                type="switch"
+                checked={newRecipe.isFinal}
+                onChange={(e) =>
+                  setNewRecipe((prev) => ({
+                    ...prev,
+                    isFinal: e.target.checked,
+                  }))
+                }
+              />
+            </Col>
+          </Form.Group>
+
+          <Form.Group className="mb-3" controlId="newRecipeIngredients">
+            <Form.Label className="d-block text-center mb-3">
+              Ingredients
+            </Form.Label>
+
             {/* Column headers */}
             <Row className="mb-2 gx-3 align-items-center">
               <Col xs={3} className="text-center">
@@ -339,15 +401,15 @@ const Recipes = () => {
                 <strong>Qty/L (g)</strong>
               </Col>
               <Col xs={2} className="text-center">
-                <strong>Cost/L ($)</strong>
+                <strong>Price/L</strong>
               </Col>
               <Col xs={2} className="text-center">
-                <strong>Qty/Vm (g)</strong>
+                <strong>Qty/V (g)</strong>
               </Col>
               <Col xs={2} className="text-center">
-                <strong>Cost/Vm ($)</strong>
+                <strong>Price/V</strong>
               </Col>
-              <Col xs={1} />
+              <Col />
             </Row>
             {/* Rows */}
             {newRecipe.ingredients.map((ing, idx) => {
@@ -373,9 +435,15 @@ const Recipes = () => {
                         );
                       }}
                     >
-                      <option value="">Select material</option>
+                      <option value="" className="text-center">
+                        Select material
+                      </option>
                       {materials.map((m) => (
-                        <option key={m._id} value={m._id}>
+                        <option
+                          key={m._id}
+                          value={m._id}
+                          className="text-center"
+                        >
                           {m.materialname}
                         </option>
                       ))}
@@ -394,18 +462,31 @@ const Recipes = () => {
                         updateIngredient(idx, "quantity", q);
                         updateIngredient(idx, "totalPrice", q * price);
                       }}
+                      className="text-center"
                     />
                   </Col>
                   <Col xs={2} className="text-center">
-                    <Form.Control readOnly value={costPerL.toFixed(2)} />
+                    <Form.Control
+                      readOnly
+                      value={`$${costPerL.toFixed(2)}`}
+                      className="text-center"
+                    />
                   </Col>
                   <Col xs={2} className="text-center">
-                    <Form.Control readOnly value={qtyForVol.toFixed(2)} />
+                    <Form.Control
+                      readOnly
+                      value={qtyForVol.toFixed(2)}
+                      className="text-center"
+                    />
                   </Col>
                   <Col xs={2} className="text-center">
-                    <Form.Control readOnly value={costForVol.toFixed(2)} />
+                    <Form.Control
+                      readOnly
+                      value={`$${costForVol.toFixed(2)}`}
+                      className="text-center"
+                    />
                   </Col>
-                  <Col xs={1} xs="auto">
+                  <Col xs="auto">
                     {newRecipe.ingredients.length > 1 && (
                       <Button
                         variant="outline-danger"
@@ -453,206 +534,282 @@ const Recipes = () => {
 
       {/* ── RECIPES LIST ──────────────────────────────────────── */}
       <h2 className="mb-3">All Recipes</h2>
-      <Row xs={3} className="g-4">
+      {/* Filter by Recipe Name */}
+      <Form.Group as={Row} className="align-items-center mb-4">
+        <Form.Label column sm="2">
+          Search recipes:
+        </Form.Label>
+        <Col sm="4">
+          <Form.Control
+            type="text"
+            className="ms-2"
+            style={{ width: "400px", height: "40px" }}
+            placeholder="Type recipe name..."
+            value={recipeFilter}
+            onChange={(e) => {
+              setRecipeFilter(e.target.value);
+              setPage(1); // reset pagination back to page 1
+            }}
+          />
+        </Col>
+        <Col className="d-flex align-items-center justify-content-end gap-2">
+          <Button
+            variant={
+              !showFinal && !showArchived ? "secondary" : "outline-secondary"
+            }
+            size="sm"
+            className="me-1 d-flex align-items-center justify-content-center"
+            style={{ width: "100px", height: "40px" }}
+            onClick={() => {
+              setShowArchived(false);
+              setShowFinal(false);
+              setPage(1);
+            }}
+          >
+            <FaHourglassHalf />
+            <span className="ms-1">Active</span>
+          </Button>
+          <Button
+            variant={
+              showFinal && !showArchived ? "secondary" : "outline-secondary"
+            }
+            size="sm"
+            className="me-1 d-flex align-items-center justify-content-center"
+            style={{ width: "100px", height: "40px" }}
+            onClick={() => {
+              setShowFinal(true);
+              setShowArchived(false);
+              setPage(1);
+            }}
+          >
+            <FaCheckCircle />
+            <span className="ms-1">Final</span>
+          </Button>
+          <Button
+            variant={showArchived ? "secondary" : "outline-secondary"}
+            size="sm"
+            className="me-1 d-flex align-items-center justify-content-center"
+            style={{ width: "100px", height: "40px" }}
+            onClick={() => {
+              setShowArchived(true);
+              setPage(1);
+            }}
+          >
+            <FaArchive />
+            <span className="ms-1">Archived</span>
+          </Button>
+        </Col>
+      </Form.Group>
+      <Row xs={1} md={2} lg={3} className="g-4">
         {currentRecipes.map((recipe) => (
           <Col key={recipe._id} className="d-flex">
-            <Card className="h-100 w-100">
-              <Card.Header className="d-flex justify-content-between align-items-center">
-                <span>{recipe.name}</span>
-                <FaBookmark
-                  size={20}
+            <Card className="mb-4 border-primary">
+              <Card.Header className="position-relative py-2">
+                <div
+                  className="position-absolute"
                   style={{
-                    cursor: "pointer",
-                    color: recipe.isFinal ? "gold" : "grey",
+                    left: "1rem",
+                    top: "50%",
+                    transform: "translateY(-50%)",
+                    cursor: "not-allowed",
                   }}
-                  onClick={() => handleToggleFinal(recipe._id)}
-                />
-              </Card.Header>
-              {editingId === recipe._id ? (
-                <>
-                  <Card.Body>
-                    {/* inline edit form (reuse existing edit UI) */}
-                    <Form.Group className="mb-3">
-                      <Form.Label>Name</Form.Label>
-                      <Form.Control
-                        type="text"
-                        value={editData.name}
-                        onChange={(e) =>
-                          setEditData((prev) => ({
-                            ...prev,
-                            name: e.target.value,
-                          }))
-                        }
-                      />
-                    </Form.Group>
-                    <Form.Group className="mb-3">
-                      <Form.Label>Product</Form.Label>
-                      <Form.Select
-                        disabled
-                        value={editData.productId}
-                        onChange={(e) =>
-                          setEditData((prev) => ({
-                            ...prev,
-                            productId: e.target.value,
-                          }))
-                        }
-                      >
-                        <option value="">Select product</option>
-                        {products.map((p) => (
-                          <option key={p._id} value={p._id}>
-                            {p.productId}
-                          </option>
-                        ))}
-                      </Form.Select>
-                    </Form.Group>
-                    {editData.ingredients.map((ing, idx) => (
-                      <InputGroup
-                        className="mb-2"
-                        key={idx}
-                        style={{ alignItems: "center" }}
-                      >
-                        <Form.Select
-                          value={ing.materialname}
-                          onChange={(e) => {
-                            const matId = e.target.value;
-                            const price =
-                              materials.find((m) => m._id === matId)
-                                ?.priceInGramsInUSD || 0;
-                            updateEditField(idx, "materialname", matId);
-                            updateEditField(idx, "quantity", 0);
-                            updateEditField(idx, "totalPrice", 0);
-                          }}
-                        >
-                          <option value="">Select material</option>
-                          {materials.map((m) => (
-                            <option key={m._id} value={m._id}>
-                              {m.materialname}
-                            </option>
-                          ))}
-                        </Form.Select>
-                        <Form.Control
-                          type="number"
-                          placeholder="Qty g"
-                          value={ing.quantity}
-                          onChange={(e) => {
-                            const q = +e.target.value;
-                            const price =
-                              materials.find((m) => m._id === ing.materialname)
-                                ?.priceInGramsInUSD || 0;
-                            updateEditField(idx, "quantity", q);
-                            updateEditField(idx, "totalPrice", q * price);
-                          }}
-                          style={{ maxWidth: "100px" }}
-                        />
-                        <InputGroup.Text>g</InputGroup.Text>
-                        <Form.Control
-                          type="number"
-                          readOnly
-                          value={ing.totalPrice.toFixed(2)}
-                          style={{ maxWidth: "80px" }}
-                        />
-                        {editData.ingredients.length > 1 && (
-                          <Button
-                            variant="outline-danger"
-                            onClick={() => {
-                              const newIngs = editData.ingredients.filter(
-                                (_, i) => i !== idx
-                              );
-                              setEditData((prev) => ({
-                                ...prev,
-                                ingredients: newIngs,
-                              }));
-                            }}
-                          >
-                            <FaTrashAlt />
-                          </Button>
-                        )}
-                      </InputGroup>
-                    ))}
-                  </Card.Body>
+                >
+                  {recipe.isFinal && (
+                    <FaFlag color="#3CB371" size={14} title="Final recipe" />
+                  )}
+                </div>
 
-                  <Card.Footer className="d-flex justify-content-end gap-2">
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      onClick={handleCancelEdit}
-                    >
-                      Cancel
-                    </Button>
-                    <Button
-                      variant="primary"
-                      size="sm"
-                      onClick={() => handleSaveEdit(recipe._id)}
-                    >
-                      Save
-                    </Button>
-                  </Card.Footer>
-                </>
-              ) : (
-                <Card.Body>
-                  <p>
+                <div className="text-center w-100">
+                  <strong>{recipe.name}</strong>
+                </div>
+                <div
+                  className="position-absolute"
+                  style={{
+                    right: "1rem",
+                    top: "50%",
+                    transform: "translateY(-50%)",
+                  }}
+                >
+                  <Button
+                    variant="outline-secondary"
+                    size="sm"
+                    className="p-1"
+                    style={{
+                      backgroundColor: "transparent", // fully see-through
+                      borderColor: "transparent", // light grey border
+                      color: "#6c757d", // darker grey icon
+                      minWidth: "32px",
+                      height: "32px",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      borderRadius: "4px",
+                    }}
+                    onClick={() =>
+                      setExpandedId(
+                        expandedId === recipe._id ? null : recipe._id
+                      )
+                    }
+                  >
+                    {expandedId === recipe._id ? (
+                      <FiMinimize2 size={14} />
+                    ) : (
+                      <FiMaximize2 size={14} />
+                    )}
+                  </Button>
+                </div>
+              </Card.Header>
+
+              <Card.Body>
+                <div
+                  style={{
+                    maxHeight: "200px",
+                    overflowY: "auto",
+                    paddingRight: "1rem",
+                  }}
+                >
+                  <p className="mb-2" style={{ fontSize: "0.83rem" }}>
                     <strong>Product:</strong>{" "}
                     {products.find((p) => p._id === recipe.productId)
                       ?.productname || "—"}
                   </p>
-                  <Table size="sm" className="table-fixed w-100">
+                  <Table size="sm" className="mb-2 table-fixed w-100">
                     <thead>
                       <tr>
-                        <th>Material</th>
-                        <th>Qty (g)</th>
-                        <th>Price</th>
+                        <th style={{ fontSize: "0.83rem" }}>Materials</th>
+                        <th style={{ fontSize: "0.83rem" }}>Qty/L (g)</th>
+                        <th style={{ fontSize: "0.83rem" }}>Price/L</th>
+                        <th style={{ fontSize: "0.83rem" }}>Qty/V (g)</th>
+                        <th style={{ fontSize: "0.83rem" }}>Price/V</th>
                       </tr>
                     </thead>
                     <tbody>
                       {recipe.ingredients.map((ing, i) => (
                         <tr key={i}>
-                          <td>{ing.materialname}</td>
-                          <td>{ing.quantity}</td>
-                          <td>${ing.totalPrice.toFixed(2)}</td>
+                          <td style={{ fontSize: "0.83rem" }}>
+                            {ing.materialname}
+                          </td>
+                          <td style={{ fontSize: "0.83rem" }}>
+                            {ing.quantity}
+                          </td>
+                          <td style={{ fontSize: "0.83rem" }}>
+                            ${ing.totalPrice.toFixed(2)}
+                          </td>
+                          <td style={{ fontSize: "0.83rem" }}>
+                            {ing.quantity * recipe.volumeLitres}
+                          </td>
+                          <td style={{ fontSize: "0.83rem" }}>
+                            ${(ing.totalPrice * recipe.volumeLitres).toFixed(2)}
+                          </td>
                         </tr>
                       ))}
                     </tbody>
                   </Table>
-                </Card.Body>
-              )}
-              {editingId !== recipe._id && (
-                <Card.Footer className="d-flex justify-content-between align-items-center">
-                  <div>
-                    <div>
-                      <strong>Cost /L:</strong> ${recipe.totalCost.toFixed(2)}
+                </div>
+              </Card.Body>
+
+              <Card.Footer className="d-flex justify-content-between align-items-center">
+                <div>
+                  <div style={{ fontSize: "0.83rem" }}>
+                    <strong>Cost /1L:</strong> ${recipe.totalCost.toFixed(2)}
+                  </div>
+                  {recipe.volumeLitres != null && (
+                    <div style={{ fontSize: "0.83rem" }}>
+                      <strong>Cost /{recipe.volumeLitres}L:</strong> $
+                      {(recipe.totalCost * recipe.volumeLitres).toFixed(2)}
                     </div>
-                    {recipe.volumeLitres != null && (
-                      <div>
-                        <strong>Cost /{recipe.volumeLitres}L:</strong> $
-                        {(recipe.totalCost * recipe.volumeLitres).toFixed(2)}
-                      </div>
-                    )}
-                  </div>
-                  <div className="d-flex gap-2">
-                    <Button
-                      size="sm"
-                      variant="outline-secondary"
-                      onClick={() => handleStartEdit(recipe)}
-                    >
-                      <PencilSquare />
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline-danger"
-                      onClick={() => {
-                        setDeleteTarget(recipe._id);
-                        setShowDeleteModal(true);
-                      }}
-                    >
-                      <Trash />
-                    </Button>
-                  </div>
-                </Card.Footer>
-              )}
+                  )}
+                </div>
+                <div className="d-flex gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline-secondary"
+                    onClick={() => handleStartEdit(recipe)}
+                  >
+                    <PencilSquare />
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline-danger"
+                    onClick={() => {
+                      setDeleteTarget(recipe._id);
+                      setShowDeleteModal(true);
+                    }}
+                  >
+                    <Trash />
+                  </Button>
+                </div>
+              </Card.Footer>
             </Card>
           </Col>
         ))}
       </Row>
+      {/* full-screen Modal for the expanded card */}
+      {expandedId &&
+        (() => {
+          const r = recipes.find((r) => r._id === expandedId);
+          return (
+            <Modal show onHide={() => setExpandedId(null)} size="xl" centered>
+              <Modal.Header closeButton>
+                <Modal.Title className="mx-auto">{r.name}</Modal.Title>
+              </Modal.Header>
+              <Modal.Body>
+                <Card>
+                  <Card.Body>
+                    <p>
+                      <strong>Product:</strong>{" "}
+                      {products.find((p) => p._id === r.productId)?.productname}
+                    </p>
+                    <p>
+                      <strong>Batch Size (L):</strong> {r.volumeLitres}
+                    </p>
+
+                    <Table
+                      responsive
+                      size="sm"
+                      className="mb-2 table-fixed w-100"
+                    >
+                      <thead>
+                        <tr>
+                          <th>Materials</th>
+                          <th>Qty/L (g)</th>
+                          <th>Price/L</th>
+                          <th>Qty/V (g)</th>
+                          <th>Price/V</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {r.ingredients.map((ing, i) => (
+                          <tr key={i}>
+                            <td>{ing.materialname}</td>
+                            <td>{ing.quantity}</td>
+                            <td>${ing.totalPrice.toFixed(2)}</td>
+                            <td>{ing.quantity * r.volumeLitres}</td>
+                            <td>
+                              ${(ing.totalPrice * r.volumeLitres).toFixed(2)}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </Table>
+
+                    <div style={{ textAlign: "right" }}>
+                      <div>
+                        <strong>Cost /1L:</strong> ${r.totalCost.toFixed(2)}
+                      </div>
+                      {r.volumeLitres != null && (
+                        <div>
+                          <strong>Cost /{r.volumeLitres}L:</strong> $
+                          {(r.totalCost * r.volumeLitres).toFixed(2)}
+                        </div>
+                      )}
+                    </div>
+                  </Card.Body>
+                </Card>
+              </Modal.Body>
+            </Modal>
+          );
+        })()}
 
       {/* Pagination Controls */}
       <div className="d-flex justify-content-center mt-4">
@@ -668,6 +825,262 @@ const Recipes = () => {
           ))}
         </Pagination>
       </div>
+
+      {/* Edit Recipe Modal */}
+      <Modal show={showEditModal} onHide={handleCloseEdit} size="lg" centered>
+        <Modal.Header closeButton>
+          <Modal.Title>Edit Recipe: {editData?.name}</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          <Form>
+            <Form.Group as={Row} className="mb-2">
+              <Form.Label column sm="2" className="text-end">
+                Recipe Name
+              </Form.Label>
+              <Form.Control
+                value={editData.name}
+                readOnly
+                style={{ maxWidth: "250px", cursor: "not-allowed" }}
+              />
+            </Form.Group>
+            <Form.Group as={Row} className="mb-2">
+              <Form.Label column sm="2" className="text-end">
+                Product
+              </Form.Label>
+              <Form.Control
+                readOnly
+                value={
+                  products.find((p) => p._id === editData.productId)
+                    ?.productname || "—"
+                }
+                style={{ maxWidth: "250px", cursor: "not-allowed" }}
+              ></Form.Control>
+            </Form.Group>
+            <Form.Group as={Row} className="mb-2">
+              <Form.Label column sm="2" className="text-end">
+                Batch Size (L)
+              </Form.Label>
+              <Form.Control
+                type="number"
+                value={editData.volumeLitres}
+                min={0.1}
+                step={0.1}
+                onChange={(e) =>
+                  setEditData((d) => ({
+                    ...d,
+                    volumeLitres: Number(e.target.value) || 1,
+                  }))
+                }
+                style={{ maxWidth: "250px" }}
+              />
+            </Form.Group>
+            <Form.Group className="mb-3">
+              <Form.Label className="d-block text-center mb-3">
+                Ingredients
+              </Form.Label>
+              <Row className="mb-2 gx-2 align-items-center">
+                <Col xs={3} className="text-center">
+                  <strong>Material</strong>
+                </Col>
+                <Col xs={2} className="text-center">
+                  <strong>Qty/L (g)</strong>
+                </Col>
+                <Col xs={2} className="text-center">
+                  <strong>Price/L</strong>
+                </Col>
+                <Col xs={2} className="text-center">
+                  <strong>Qty/V (g)</strong>
+                </Col>
+                <Col xs={2} className="text-center">
+                  <strong>Price/V</strong>
+                </Col>
+                <Col xs={1} />
+              </Row>
+              {editData.ingredients.map((ing, idx) => {
+                const qtyPerL = ing.quantity;
+
+                const costPerL = ing.totalPrice;
+                const qtyForVol = qtyPerL * editData.volumeLitres;
+                const costForVol = costPerL * editData.volumeLitres;
+                return (
+                  <Row key={idx} className="mb-2 gx-2 align-items-center">
+                    <Col xs={3}>
+                      <Form.Select
+                        value={ing.materialId}
+                        onChange={(e) => {
+                          const mat = materials.find(
+                            (m) => m._id === e.target.value
+                          );
+                          updateEditField(idx, "materialId", e.target.value);
+                          updateEditField(
+                            idx,
+                            "materialname",
+                            mat.materialname
+                          );
+                          updateEditField(
+                            idx,
+                            "totalPrice",
+                            ing.quantity * (mat.priceInGramsInUSD || 0)
+                          );
+                        }}
+                      >
+                        <option value="" className="text-center">
+                          Select material
+                        </option>
+                        {materials.map((m) => (
+                          <option
+                            key={m._id}
+                            value={m._id}
+                            className="text-center"
+                          >
+                            {m.materialname}
+                          </option>
+                        ))}
+                      </Form.Select>
+                    </Col>
+                    <Col xs={2}>
+                      <Form.Control
+                        type="number"
+                        value={ing.quantity}
+                        onChange={(e) => {
+                          const q = Number(e.target.value) || 0;
+                          const mat = materials.find(
+                            (m) => m._id === ing.materialId
+                          );
+                          const price = mat ? mat.priceInGramsInUSD : 0;
+                          updateEditField(idx, "quantity", q);
+                          updateEditField(idx, "totalPrice", q * price);
+                        }}
+                        className="text-center"
+                      />
+                    </Col>
+                    <Col xs={2}>
+                      <Form.Control
+                        readOnly
+                        value={`$${costPerL.toFixed(2)}`}
+                        className="text-center"
+                      />
+                    </Col>
+                    <Col xs={2}>
+                      <Form.Control
+                        readOnly
+                        value={qtyForVol.toFixed(2)}
+                        className="text-center"
+                      />
+                    </Col>
+                    <Col xs={2}>
+                      <Form.Control
+                        readOnly
+                        value={`$${costForVol.toFixed(2)}`}
+                        className="text-center"
+                      />
+                    </Col>
+                    <Col xs={1}>
+                      {editData.ingredients.length > 1 && (
+                        <Button
+                          variant="outline-danger"
+                          size="sm"
+                          onClick={() => {
+                            const newIngs = editData.ingredients.filter(
+                              (_, i) => i !== idx
+                            );
+                            setEditData((prev) => ({
+                              ...prev,
+                              ingredients: newIngs,
+                            }));
+                          }}
+                        >
+                          <FaTrashAlt />
+                        </Button>
+                      )}
+                    </Col>
+                  </Row>
+                );
+              })}
+              <div className="d-flex justify-content-between align-items-center mb-3">
+                <Button
+                  variant="outline-success"
+                  className="d-inline-flex align-items-center"
+                  onClick={() => {
+                    setEditData((prev) => ({
+                      ...prev,
+                      ingredients: [
+                        ...prev.ingredients,
+                        {
+                          materialId: "",
+                          materialname: "",
+                          quantity: 0,
+                          totalPrice: 0,
+                        },
+                      ],
+                    }));
+                  }}
+                >
+                  <FaPlus className="me-2" /> Add Row
+                </Button>
+              </div>
+            </Form.Group>
+
+            <div
+              className="d-inline-flex border rounded align-items-center p-2"
+              style={{ backgroundColor: "#f8f9fa", whiteSpace: "nowrap" }}
+            >
+              <Form.Label className="mb-0 me-2">Final Recipe</Form.Label>
+              <Form.Check
+                inline
+                type="switch"
+                checked={editData.isFinal}
+                onChange={(e) =>
+                  setEditData((prev) => ({
+                    ...prev,
+                    isFinal: e.target.checked,
+                  }))
+                }
+              />
+            </div>
+            <div
+              className="d-inline-flex border rounded align-items-center p-2 ms-3"
+              style={{ backgroundColor: "#f8f9fa", whiteSpace: "nowrap" }}
+            >
+              <Form.Label className="mb-0 me-2">Archived</Form.Label>
+              <Form.Check
+                inline
+                type="switch"
+                checked={editData.isArchived}
+                onChange={(e) =>
+                  setEditData((prev) => ({
+                    ...prev,
+                    isArchived: e.target.checked,
+                  }))
+                }
+              />
+            </div>
+
+            <div style={{ textAlign: "right" }}>
+              <div>
+                <strong>Cost /1L:</strong> ${editData.totalCost.toFixed(2)}
+              </div>
+              <div>
+                <strong>Cost /{editData.volumeLitres}L:</strong> $ $
+                {(editData.totalCost * editData.volumeLitres).toFixed(2)}
+              </div>
+            </div>
+          </Form>
+        </Modal.Body>
+        <Modal.Footer>
+          <Button size="sm" variant="secondary" onClick={handleCloseEdit}>
+            Cancel
+          </Button>
+          <Button
+            className="d-inline-flex align-items-center"
+            size="sm"
+            variant="primary"
+            onClick={handleSaveEdit}
+          >
+            <FaSave className="me-2" /> Save Changes
+          </Button>
+        </Modal.Footer>
+      </Modal>
 
       {/* Delete Modal */}
       <Modal show={showDeleteModal} onHide={() => setShowDeleteModal(false)}>
