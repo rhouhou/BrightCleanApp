@@ -7,6 +7,8 @@ import expenseRoutes from "./routes/expense.routes.js";
 import accountingRoutes from "./routes/accounting.routes.js";
 import materialRoutes from "./routes/material.routes.js";
 import recipeRoutes from "./routes/recipe.routes.js";
+import userRoutes from "./routes/user.routes.js";
+import authRoutes from "./routes/auth.routes.js";
 
 dotenv.config();
 
@@ -28,6 +30,8 @@ app.use("/api/expenses", expenseRoutes);
 app.use("/api/accounting", accountingRoutes);
 app.use("/api/materials", materialRoutes);
 app.use("/api/recipes", recipeRoutes);
+app.use("/api/user", userRoutes);
+app.use("/api/auth", authRoutes);
 
 // Global error handling middleware
 app.use((err, req, res, next) => {

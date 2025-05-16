@@ -7,6 +7,9 @@ import Expenses from "./pages/Expenses";
 import Accounting from "./pages/Accounting";
 import Materials from "./pages/Materials";
 import Recipes from "./pages/Recipes";
+import SignUp from "./pages/SignUp";
+import Login from "./pages/Login";
+import ForgotPassword from "./pages/ForgotPassword";
 import 'bootstrap/dist/css/bootstrap.min.css';
 import './index.css';
 
@@ -22,6 +25,9 @@ const App = () => {
         <Route path="/accounting" element={<Accounting />} />
         <Route path="/materials" element={<Materials />} />
         <Route path="/recipes" element={<Recipes />} />
+        <Route path="/signup" element={<SignUp />} />
+        <Route path="/login" element={<Login />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
       </Routes>
     </BrowserRouter>
   );

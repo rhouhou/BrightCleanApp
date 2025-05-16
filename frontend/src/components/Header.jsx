@@ -9,6 +9,7 @@ import {
   FaWallet,
   FaFileInvoiceDollar,
   FaSearch,
+  FaSignInAlt,
 } from "react-icons/fa";
 
 const Header = () => {
@@ -142,6 +143,22 @@ const Header = () => {
         >
           <FaFileInvoiceDollar size={18} title="Accounting Section" />
           <span style={{ fontSize: 18 }}>Accounting</span>
+        </NavLink>
+
+          <NavLink
+          to="/login"
+          className="nav-link"
+          style={({ isActive }) => ({
+            display: "flex",
+            alignItems: "center",
+            gap: "7px",
+            color: isActive ? "#7f8c8d" : "#7dd3fc",
+            textDecoration: "none",
+            marginRight: "40px",
+          })}
+        >
+          <FaSignInAlt size={18} title="Login Section" />
+          <span style={{ fontSize: 18 }}>Login</span>
         </NavLink>
       </div>
     </header>
