@@ -354,11 +354,90 @@ select:focus {
   /* custom color for text */
 }
 
+/* Start Dashboard Layout */
+.custom-layout {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr; /* 3 columns for the first row */
+  grid-template-rows: auto auto;      /* 2 rows */
+  gap: 20px;
+  align-items: start;
+  background: #1e1e1e;
+  border-radius: 10px;
+  padding: 20px;
+}
 
+/* Define grid areas */
+.custom-layout > .box1 {
+  grid-area: box1;
+}
+.custom-layout > .box2 {
+  grid-area: box2;
+}
+.custom-layout > .box3 {
+  grid-area: box3;
+}
+.custom-layout > .box4 {
+  grid-area: box4;
+  grid-column: span 2; /* Make this box span 2 columns */
+}
+.custom-layout > .box5 {
+  grid-area: box5;
+}
 
+/* Define grid structure */
+.custom-layout {
+  grid-template-areas: 
+    "box1 box2 box3"
+    "box4 box5";
+}
 
+/* End Dashboard Layout */
 
+.dropdown {
+  position: relative;
+  display: inline-block;
+}
 
+.dropdown-btn {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  background-color: transparent;
+  border: none;
+  color: #7dd3fc;
+  cursor: pointer;
+  font-size: 18px;
+}
+
+.dropdown-btn:hover {
+  color: #7f8c8d;
+}
+
+.dropdown-content {
+  display: none;
+  position: absolute;
+  background-color: #f9f9f9;
+  min-width: 160px;
+  border-radius: 5px;
+  z-index: 1;
+  padding: 10px 0;
+  box-shadow: 0 8px 16px rgba(0,0,0,0.2);
+}
+
+.dropdown-content a {
+  color: #333;
+  padding: 10px 20px;
+  text-decoration: none;
+  display: block;
+}
+
+.dropdown-content a:hover {
+  background-color: #ddd;
+}
+
+.dropdown:hover .dropdown-content {
+  display: block;
+}
 
 
 

@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { Link, NavLink } from "react-router-dom";
 import {
-  FaHome,
+  FaChartPie,
   FaBox,
   FaChartLine,
   FaBoxes,
@@ -10,9 +10,14 @@ import {
   FaFileInvoiceDollar,
   FaSearch,
   FaSignInAlt,
+  FaUser,
+  FaChevronDown,
+  FaCogs,
 } from "react-icons/fa";
+import { useSelector } from "react-redux";
 
 const Header = () => {
+  const { currentUser } = useSelector((state) => state.user);
   const [searchTerm, setSearchTerm] = useState("");
 
   return (
@@ -36,11 +41,13 @@ const Header = () => {
             onChange={(e) => setSearchTerm(e.target.value)}
           />
           <button>
-            <FaSearch className="text-slate-600" />
+            <FaChevronDown className="text-slate-600" />
           </button>
         </form>
       </div>
+
       <div className="top-nav">
+        {/* Dashboard */}
         <NavLink
           to="/"
           className="nav-link"
@@ -52,85 +59,41 @@ const Header = () => {
             textDecoration: "none",
           })}
         >
-          <FaHome size={18} title="Home" />
-          <span style={{ fontSize: 18 }}>Home</span>
-        </NavLink>
-        <NavLink
-          to="/product-list"
-          className="nav-link"
-          style={({ isActive }) => ({
-            display: "flex",
-            alignItems: "center",
-            gap: "7px",
-            color: isActive ? "#7f8c8d" : "#7dd3fc",
-            textDecoration: "none",
-          })}
-        >
-          <FaBox size={18} title="Products Section" />
-          <span style={{ fontSize: 18 }}>Products</span>
+          <FaChartPie size={18} title="Dashboard" />
+          <span style={{ fontSize: 18 }}>Dashboard</span>
         </NavLink>
 
-        <NavLink
-          to="/sales"
-          className="nav-link"
-          style={({ isActive }) => ({
-            display: "flex",
-            alignItems: "center",
-            gap: "7px",
-            color: isActive ? "#7f8c8d" : "#7dd3fc",
-            textDecoration: "none",
-          })}
-        >
-          <FaChartLine size={18} title="Sales Section" />
-          <span style={{ fontSize: 18 }}>Sales</span>
-        </NavLink>
-        <NavLink
-          to="/expenses"
-          className="nav-link"
-          style={({ isActive }) => ({
-            display: "flex",
-            alignItems: "center",
-            gap: "7px",
-            color: isActive ? "#7f8c8d" : "#7dd3fc",
-            textDecoration: "none",
-          })}
-        >
-          <FaWallet size={18} title="Expenses Section" />
-          <span style={{ fontSize: 18 }}>Expenses</span>
-        </NavLink>
+        {/* Inventory Group */}
+        <div className="dropdown">
+          <button className="dropdown-btn">
+            <FaBoxes size={18} title="Inventory" />
+            <span style={{ fontSize: 18 }}>Inventory</span>
+            <FaChevronDown size={14} />
+          </button>
+          <div className="dropdown-content">
+            <NavLink to="/product-list">Products</NavLink>
+            <NavLink to="/materials">Materials</NavLink>
+            <NavLink to="/recipes">Recipes</NavLink>
+          </div>
+        </div>
 
-        <NavLink
-          to="/materials"
-          className="nav-link"
-          style={({ isActive }) => ({
-            display: "flex",
-            alignItems: "center",
-            gap: "7px",
-            color: isActive ? "#7f8c8d" : "#7dd3fc",
-            textDecoration: "none",
-          })}
-        >
-          <FaBoxes size={18} title="Materials Section" />
-          <span style={{ fontSize: 18 }}>Materials</span>
-        </NavLink>
+        {/* Financials Group */}
+        <div className="dropdown">
+          <button className="dropdown-btn">
+            <FaWallet size={18} title="Financials" />
+            <span style={{ fontSize: 18 }}>Financials</span>
+            <FaChevronDown size={14} />
+          </button>
+          <div className="dropdown-content">
+            <NavLink to="/sales">Sales</NavLink>
+            <NavLink to="/expenses">Expenses</NavLink>
+            <NavLink to="/accounting">Accounting</NavLink>
+          </div>
+        </div>
 
+        {/* User/Profile */}
         <NavLink
-          to="/recipes"
-          className="nav-link"
-          style={({ isActive }) => ({
-            display: "flex",
-            alignItems: "center",
-            gap: "7px",
-            color: isActive ? "#7f8c8d" : "#7dd3fc",
-            textDecoration: "none",
-          })}
-        >
-          <FaBookOpen size={18} title="Recipes Section" />
-          <span style={{ fontSize: 18 }}>Recipes</span>
-        </NavLink>
-
-        <NavLink
-          to="/accounting"
+          to="/profile"
           className="nav-link"
           style={({ isActive }) => ({
             display: "flex",
@@ -141,24 +104,15 @@ const Header = () => {
             marginRight: "40px",
           })}
         >
-          <FaFileInvoiceDollar size={18} title="Accounting Section" />
-          <span style={{ fontSize: 18 }}>Accounting</span>
-        </NavLink>
-
-          <NavLink
-          to="/login"
-          className="nav-link"
-          style={({ isActive }) => ({
-            display: "flex",
-            alignItems: "center",
-            gap: "7px",
-            color: isActive ? "#7f8c8d" : "#7dd3fc",
-            textDecoration: "none",
-            marginRight: "40px",
-          })}
-        >
-          <FaSignInAlt size={18} title="Login Section" />
-          <span style={{ fontSize: 18 }}>Login</span>
+          {currentUser ? (
+            <img
+              className="rounded-full h-7 w-7 object-cover"
+              src={currentUser.avatar}
+              alt="profile"
+            />
+          ) : (
+            <FaSignInAlt size={18} title="Login Section" />
+          )}
         </NavLink>
       </div>
     </header>

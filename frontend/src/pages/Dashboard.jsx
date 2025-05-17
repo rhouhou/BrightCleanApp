@@ -3,7 +3,7 @@ import { Link, NavLink } from "react-router-dom";
 import { FaBox, FaChartLine, FaWallet, FaFileInvoiceDollar } from "react-icons/fa";
 import { Tab } from "react-admin";
 
-const Home = () => {
+const Dashboard = () => {
   return (
     <div className="home-page-container">
       <div className="two-column-layout">
@@ -65,4 +65,4 @@ const Home = () => {
   );
 };
 
-export default Home;
+export default Dashboard;
