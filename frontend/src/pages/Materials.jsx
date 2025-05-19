@@ -15,6 +15,8 @@ const Materials = () => {
   const initialMaterial = () => ({
     IDmaterial: `${Date.now()}-${Math.floor(Math.random() * 10000)}`,
     materialname: "",
+    quantity: 1,
+    totalpriceInUSD: 0,
     priceInGramsInUSD: 0,
   });
 
@@ -110,6 +112,13 @@ const Materials = () => {
     setNewMaterial((prevMaterial) => {
       const updatedMaterial = { ...prevMaterial, [fieldName]: value };
 
+      // If either quantity or totalPrice changes, recalc priceInGramsInUSD
+      if (fieldName === "quantity" || fieldName === "totalPriceInUSD") {
+        const q = parseFloat(updatedMaterial.quantity) || 0;
+        const total = parseFloat(updatedMaterial.totalPriceInUSD) || 0;
+        updatedMaterial.priceInGramsInUSD = q > 0 ? total / q : 0;
+      }
+
       if (fieldName === "materialname") {
         const cleaned = value
           .trim()
@@ -142,6 +151,12 @@ const Materials = () => {
 
     // Make a shallow copy and apply the change
     const updated = { ...itemToEdit, [field]: value };
+
+    if (field === "quantity" || field === "totalPriceInUSD") {
+      const q = parseFloat(updated.quantity) || 0;
+      const total = parseFloat(updated.totalPriceInUSD) || 0;
+      updated.priceInGramsInUSD = q > 0 ? total / q : 0;
+    }
 
     // Special ID‐rebuild logic when renaming
     if (field === "materialname") {
@@ -268,7 +283,8 @@ const Materials = () => {
   };
 
   // Define Columns for Materials
-  const materialsColumns = [
+  // always‐visible columns
+  const defaultColumns = [
     {
       header: "Material ID",
       accessor: "IDmaterial",
@@ -278,14 +294,31 @@ const Materials = () => {
     {
       header: "Material Name",
       accessor: "materialname",
-      isEditable: true,
       type: "text",
+      isEditable: false,
     },
     {
-      header: "Price In Grams ($)",
+      header: "Price per Gram ($)",
       accessor: "priceInGramsInUSD",
-      isEditable: true,
       type: "number",
+      isEditable: false,
+    },
+  ];
+
+  // columns to show only when editing
+  const editingColumns = [
+    ...defaultColumns,
+    {
+      header: "Quantity",
+      accessor: "quantity",
+      type: "number",
+      isEditable: true,
+    },
+    {
+      header: "Total Price ($)",
+      accessor: "totalPriceInUSD",
+      type: "number",
+      isEditable: true,
     },
   ];
 
@@ -379,6 +412,12 @@ const Materials = () => {
   );
   console.log("Paginated Materials:", paginatedMaterials);
 
+  const isAnyEditing =
+    materials.some((m) => m.isEditing) || newMaterials.some((m) => m.isEditing);
+
+  // Choose the right columns
+  const columnsToShow = isAnyEditing ? editingColumns : defaultColumns;
+
   return (
     <div>
       {/* Section 1 */}
@@ -404,7 +443,7 @@ const Materials = () => {
       {/* Table Section */}
       <div className="table-panel">
         <ItemsTable
-          columns={materialsColumns}
+          columns={columnsToShow}
           items={paginatedMaterials}
           onToggleEditMode={onPageToggle}
           onEdit={onPageEdit}
@@ -551,6 +590,78 @@ const Materials = () => {
                 }}
               >
                 <label
+                  htmlFor="quantity"
+                  className="text-gray-600"
+                  style={{ fontWeight: "bold", margin: "0" }}
+                >
+                  Quantity:
+                </label>
+                <input
+                  id="quantity"
+                  type="number"
+                  min="1"
+                  style={{
+                    outline: "none",
+                    border: "none",
+                    flex: 1,
+                    color: "#888",
+                  }}
+                  value={newMaterial.quantity}
+                  onChange={(e) =>
+                    handleMaterialChange("quantity", e.target.value)
+                  }
+                />
+              </div>
+
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  border: "1px solid #ccc",
+                  borderRadius: "5px",
+                  padding: "10px",
+                  backgroundColor: "#fff",
+                  width: "450px",
+                  gap: "10px",
+                }}
+              >
+                <label
+                  htmlFor="totalPriceInUSD"
+                  className="text-gray-600"
+                  style={{ fontWeight: "bold", margin: "0" }}
+                >
+                  Total Price ($):
+                </label>
+                <input
+                  id="totalPriceInUSD"
+                  type="number"
+                  min="0"
+                  style={{
+                    outline: "none",
+                    border: "none",
+                    flex: 1,
+                    color: "#888",
+                  }}
+                  value={newMaterial.totalPriceInUSD}
+                  onChange={(e) =>
+                    handleMaterialChange("totalPriceInUSD", e.target.value)
+                  }
+                />
+              </div>
+
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  border: "1px solid #ccc",
+                  borderRadius: "5px",
+                  padding: "10px",
+                  backgroundColor: "#fff",
+                  width: "450px",
+                  gap: "10px",
+                }}
+              >
+                <label
                   htmlFor="priceInGramsInUSD"
                   className="text-gray-600"
                   style={{ fontWeight: "bold", margin: "0" }}
@@ -560,7 +671,6 @@ const Materials = () => {
                 <input
                   id="priceInGramsInUSD"
                   type="number"
-                  placeholder="Enter Value"
                   step="0.00001"
                   min="0"
                   style={{
@@ -568,11 +678,11 @@ const Materials = () => {
                     border: "none",
                     flex: 1,
                     color: "#888",
+                    backgroundColor: "transparent",
+                    cursor: "not-allowed",
                   }}
                   value={newMaterial.priceInGramsInUSD}
-                  onChange={(e) =>
-                    handleMaterialChange("priceInGramsInUSD", e.target.value)
-                  }
+                  readOnly
                 />
               </div>
             </div>
