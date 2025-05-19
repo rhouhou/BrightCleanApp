@@ -10,16 +10,19 @@
 .form-check-input {
   --bs-form-check-input-checked-bg: gold !important;
   --bs-form-check-input-checked-border: gold !important;
-  --bs-form-check-input-focus-box-shadow: 0 0 0 0.2rem rgba(255,215,0,0.25) !important;
+  --bs-form-check-input-focus-box-shadow: 0 0 0 0.2rem rgba(255, 215, 0, 0.25) !important;
 }
+
 .form-check-input:checked {
   background-color: gold !important;
   border-color: gold !important;
 }
+
 .form-check-input {
   --bs-form-check-input-bg: #fff !important;
   --bs-form-check-input-border: #6c757d !important;
 }
+
 .form-check-input:not(:checked) {
   background-color: #fff !important;
   border-color: #6c757d !important;
@@ -326,6 +329,13 @@ select:focus {
   /* equivalent to border and border-gray-300 */
 }
 
+.no-actions .actions-buttons {
+  display: none;
+}
+.no-actions th:last-child {
+  display: none;
+}
+
 /* Table Header (th) Styles */
 .th-bordered {
   border: 1px solid #d1d5db;
@@ -357,8 +367,10 @@ select:focus {
 /* Start Dashboard Layout */
 .custom-layout {
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr; /* 3 columns for the first row */
-  grid-template-rows: auto auto;      /* 2 rows */
+  grid-template-columns: 1fr 1fr 1fr;
+  /* 3 columns for the first row */
+  grid-template-rows: auto auto;
+  /* 2 rows */
   gap: 20px;
   align-items: start;
   background: #1e1e1e;
@@ -367,26 +379,31 @@ select:focus {
 }
 
 /* Define grid areas */
-.custom-layout > .box1 {
+.custom-layout>.box1 {
   grid-area: box1;
 }
-.custom-layout > .box2 {
+
+.custom-layout>.box2 {
   grid-area: box2;
 }
-.custom-layout > .box3 {
+
+.custom-layout>.box3 {
   grid-area: box3;
 }
-.custom-layout > .box4 {
+
+.custom-layout>.box4 {
   grid-area: box4;
-  grid-column: span 2; /* Make this box span 2 columns */
+  grid-column: span 2;
+  /* Make this box span 2 columns */
 }
-.custom-layout > .box5 {
+
+.custom-layout>.box5 {
   grid-area: box5;
 }
 
 /* Define grid structure */
 .custom-layout {
-  grid-template-areas: 
+  grid-template-areas:
     "box1 box2 box3"
     "box4 box5";
 }
@@ -421,7 +438,7 @@ select:focus {
   border-radius: 5px;
   z-index: 1;
   padding: 10px 0;
-  box-shadow: 0 8px 16px rgba(0,0,0,0.2);
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
 }
 
 .dropdown-content a {

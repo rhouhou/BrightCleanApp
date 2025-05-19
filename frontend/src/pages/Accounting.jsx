@@ -4,24 +4,24 @@ import ItemsTable from "../components/ItemsTable";
 
 const Accounting = () => {
   const [accountingData, setAccountingData] = useState([]);
-  const [monthlySalesData, setMonthlySalesData] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchAccountingData = async () => {
       setLoading(true);
       try {
-        // Fetch sales and expenses data
-        const expenses = await fetchItems("/api/expenses");
-        const sales = await fetchItems("/api/sales");
+        const [expenses, sales, products] = await Promise.all([
+          fetchItems("/api/expenses"),
+          fetchItems("/api/sales"),
+          fetchItems("/api/products"),
+        ]);
 
-        // Aggregate the data per month and year
-        const aggregatedData = aggregateAccountingData(expenses, sales);
+        const aggregatedData = aggregateAccountingData(
+          expenses,
+          sales,
+          products
+        );
         setAccountingData(aggregatedData);
-
-        // Prepare data for the chart (number of sold items per month)
-        const monthlySales = getMonthlySalesData(sales);
-        setMonthlySalesData(monthlySales);
       } catch (error) {
         console.error("Error fetching accounting data:", error);
       } finally {
@@ -36,7 +36,6 @@ const Accounting = () => {
     return <div>Loading...</div>;
   }
 
-  
   const accountingColumns = [
     {
       header: "Month",
@@ -63,8 +62,14 @@ const Accounting = () => {
       type: "number",
     },
     {
-      header: "Total Sales",
-      accessor: "totalSales",
+      header: "Irregular Facility Expenses",
+      accessor: "irregularFacilityExpenses",
+      isEditable: false,
+      type: "number",
+    },
+    {
+      header: "Utilities",
+      accessor: "utilities",
       isEditable: false,
       type: "number",
     },
@@ -75,38 +80,65 @@ const Accounting = () => {
       type: "number",
     },
     {
-      header: "Total Profit",
-      accessor: "totalProfit",
+      header: "Cost of Goods Sold",
+      accessor: "costOfGoodsSold",
       isEditable: false,
       type: "number",
+    },
+    {
+      header: "General Profit Index",
+      accessor: "generalProfitIndex",
+      getCellClassName: (value) =>
+        value < 0 ? "text-red-500 bg-red-100" : "text-green-500 bg-green-100",
+    },
+    {
+      header: "Profit & Loss",
+      accessor: "profitAndLoss",
+      getCellClassName: (value) =>
+        value < 0 ? "text-red-500 bg-red-100" : "text-green-500 bg-green-100",
     },
   ];
 
   return (
     <>
       <div>
-          <h1 className="page-title">Accounting Overview</h1>
+        <h1 className="page-title">Accounting Overview</h1>
       </div>
       <div className="table-panel">
-        <ItemsTable 
-        columns={accountingColumns}
-        items={accountingData}
+        <ItemsTable
+          columns={accountingColumns}
+          items={accountingData}
+          showActions={false}
         />
       </div>
-</>
+    </>
   );
 };
 
 export default Accounting;
 
-const aggregateAccountingData = (expenses, sales) => {
+const aggregateAccountingData = (expenses, sales, products) => {
+  const productCostMap = products.reduce((map, p) => {
+    map[p.productname] = parseFloat(p.totalcost || 0);
+    return map;
+  }, {});
+
   const data = {};
+  const rateStats = {};
 
   expenses.forEach((expense) => {
     const date = new Date(expense.dateOfExpense);
     const month = date.getMonth() + 1; // Get month (0-indexed, so +1)
     const year = date.getFullYear();
     const key = `${year}-${month}`;
+    const rate = parseFloat(expense.exchangeRate) || 0;
+
+    rateStats[key] = rateStats[key]
+      ? {
+          sum: rateStats[key].sum + rate,
+          count: rateStats[key].count + (rate > 0 ? 1 : 0),
+        }
+      : { sum: rate, count: rate > 0 ? 1 : 0 };
 
     if (!data[key]) {
       data[key] = {
@@ -114,20 +146,41 @@ const aggregateAccountingData = (expenses, sales) => {
         year,
         totalPurchasesAndSupplies: 0,
         regularFacilityExpenses: 0,
-        totalSales: 0,
+        irregularFacilityExpenses: 0,
+        utilities: 0,
+        costOfGoodsSold: 0,
         revenues: 0,
-        totalProfit: 0,
+        generalProfitIndex: 0,
+        profitAndLoss: 0,
       };
     }
 
+    const amount = parseFloat(expense.paidInUSD || 0);
+
     // Categorize expenses
-    if (expense.category === "Purchases & Supplies") {
-      data[key].totalPurchasesAndSupplies += parseFloat(expense.paidInUSD || 0);
-    } else if (expense.category === "Regular Facility Expenses") {
-      data[key].regularFacilityExpenses += parseFloat(expense.paidInUSD || 0);
+    switch (expense.category) {
+      case "Regular Facility Expenses":
+        data[key].regularFacilityExpenses += amount;
+        break;
+      case "Irregular Facility Expenses":
+        data[key].irregularFacilityExpenses += amount;
+        break;
+      case "Utilities":
+        data[key].utilities += amount;
+        break;
+      default:
+        data[key].totalPurchasesAndSupplies += amount;
     }
   });
+  // Compute average exchange rate map
+  const exchangeRateMap = Object.fromEntries(
+    Object.entries(rateStats).map(([k, { sum, count }]) => [
+      k,
+      count ? sum / count : 1,
+    ])
+  );
 
+  // Process sales data
   sales.forEach((sale) => {
     const date = new Date(sale.dateOfPurchase);
     const month = date.getMonth() + 1;
@@ -140,42 +193,60 @@ const aggregateAccountingData = (expenses, sales) => {
         year,
         totalPurchasesAndSupplies: 0,
         regularFacilityExpenses: 0,
-        totalSales: 0,
+        irregularFacilityExpenses: 0,
+        utilities: 0,
+        costOfGoodsSold: 0,
         revenues: 0,
-        totalProfit: 0,
+        generalProfitIndex: 0,
+        profitAndLoss: 0,
       };
     }
-
-    // Add sales data
-    const saleAmount = parseFloat(sale.totalamount || 0);
-    data[key].totalSales += saleAmount;
-    data[key].revenues += saleAmount; // Assuming revenue is the same as total sales for simplicity
-    data[key].totalProfit += parseFloat(sale.totalProfitLL || 0); // Assuming profit is tracked in `totalProfitLL`
-  });
-
-  // Convert data object to an array
-  return Object.values(data);
-};
-
-// Function to get monthly sales data for the chart
-const getMonthlySalesData = (sales) => {
-  const monthlySalesCount = {};
-
-  sales.forEach((sale) => {
-    const date = new Date(sale.dateOfPurchase);
-    const month = date.getMonth() + 1; // 0-indexed, add 1 for correct month
-    const year = date.getFullYear();
-    const key = `${year}-${month}`;
-
-    if (!monthlySalesCount[key]) {
-      monthlySalesCount[key] = {
-        label: `${year}-${month}`,
-        count: 0,
-      };
+    const productKey = sale.productname;
+    const rate = exchangeRateMap[key] || 1;
+    const qty = parseFloat(sale.quantity) || 0;
+    const priceLBP = parseFloat(sale.totalamount) || 0;
+    const costPerUnitLBP = productCostMap[productKey] || 0;
+    data[key].revenues += priceLBP / rate;
+    if (!costPerUnitLBP) {
+      console.warn(
+        `No cost found for "${productKey}" in productCostMap`,
+        productCostMap
+      );
     }
-
-    monthlySalesCount[key].count += parseInt(sale.quantity, 10) || 0;
+    if (!qty) {
+      console.warn(`Sale has zero quantity or wrong field:`, sale);
+    }
+    data[key].costOfGoodsSold += costPerUnitLBP * qty;
   });
 
-  return Object.values(monthlySalesCount);
+  // Rounds a number to 2 decimals
+  const round2 = (num) => Math.round(num * 100) / 100;
+
+  // Final calculations per entry
+  return Object.values(data).map((e) => {
+    const GP =
+      -e.totalPurchasesAndSupplies -
+      e.regularFacilityExpenses -
+      e.irregularFacilityExpenses -
+      e.utilities +
+      e.revenues;
+    const PNL =
+      -e.regularFacilityExpenses -
+      e.irregularFacilityExpenses -
+      e.utilities -
+      e.costOfGoodsSold +
+      e.revenues;
+    return {
+      month: e.month,
+      year: e.year,
+      totalPurchasesAndSupplies: round2(e.totalPurchasesAndSupplies),
+      regularFacilityExpenses: round2(e.regularFacilityExpenses),
+      irregularFacilityExpenses: round2(e.irregularFacilityExpenses),
+      utilities: round2(e.utilities),
+      revenues: round2(e.revenues),
+      costOfGoodsSold: round2(e.costOfGoodsSold),
+      generalProfitIndex: round2(GP),
+      profitAndLoss: round2(PNL),
+    };
+  });
 };
