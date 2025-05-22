@@ -22,18 +22,71 @@ const ItemsTable = ({
 }) => {
   const [deleteTarget, setDeleteTarget] = useState(null);
 
+  // 1) Do we have any grouped columns?
+  const hasGroups = columns.some((col) => Array.isArray(col.columns));
+
+  // 2) Build the “leaf” array of columns for rendering the body
+  const leafColumns = hasGroups
+    ? columns.flatMap((col) =>
+        Array.isArray(col.columns) ? col.columns : [col]
+      )
+    : columns;
+
   return (
     <>
       <table className={`table-bordered ${showActions ? "" : "no-actions"}`}>
         <thead>
-          <tr className="border border-gray-300">
-            {columns.map((column) => (
-              <th key={column.accessor} className="th-bordered">
-                {column.header}
-              </th>
-            ))}
-            <th className="th-bordered">Actions</th>
-          </tr>
+          {hasGroups ? (
+            <>
+              {/* ─── First row: group headers ───────────────────────── */}
+              <tr className="border border-gray-300">
+                {columns.map((col, i) =>
+                  col.columns ? (
+                    <th
+                      key={i}
+                      colSpan={col.columns.length}
+                      className={`th-bordered ${
+                        col.header === "Prices" ? "bg-yellow-50" : ""
+                      }`}
+                    >
+                      {col.header}
+                    </th>
+                  ) : (
+                    <th key={i} rowSpan={2} className="th-bordered">
+                      {col.header}
+                    </th>
+                  )
+                )}
+                {showActions && (
+                  <th rowSpan={2} className="th-bordered">
+                    Actions
+                  </th>
+                )}
+              </tr>
+              {/* ─── Second row: child headers ───────────────────────── */}
+              <tr className="border border-gray-300">
+                {columns.map((col, i) =>
+                  col.columns
+                    ? col.columns.map((child, j) => (
+                        <th key={`${i}-${j}`} className="th-bordered">
+                          {child.header}
+                        </th>
+                      ))
+                    : null
+                )}
+              </tr>
+            </>
+          ) : (
+            // ─── No groups: your original single header row ──────────
+            <tr className="border border-gray-300">
+              {columns.map((column, colIndex) => (
+                <th key={column.id ?? colIndex} className="th-bordered">
+                  {column.header}
+                </th>
+              ))}
+              <th className="th-bordered">Actions</th>
+            </tr>
+          )}
         </thead>
         <tbody>
           {items.map((item, index) => (
@@ -48,15 +101,18 @@ const ItemsTable = ({
                   : "transparent",
               }}
             >
-              {columns.map((column) => {
-                const rawValue = item[column.accessor];
+              {leafColumns.map((column, colIndex) => {
+                const rawValue =
+                  typeof column.accessor === "function"
+                    ? column.accessor(item)
+                    : item[column.accessor];
                 // Determine conditional cell class if provided
                 const cellClass = column.getCellClassName
                   ? column.getCellClassName(rawValue, item)
                   : "";
                 return (
                   <td
-                    key={column.accessor}
+                    key={column.id ?? colIndex}
                     className={`td-bordered ${cellClass}`}
                   >
                     {item.isEditing ? (
@@ -64,12 +120,7 @@ const ItemsTable = ({
                         <select
                           value={rawValue || ""}
                           onChange={(e) =>
-                            onEdit(
-                              index,
-                              column.accessor,
-                              e.target.value,
-                              item.isNew
-                            )
+                            onEdit(index, column.id, e.target.value, item.isNew)
                           }
                           className="edit-input"
                         >
@@ -87,12 +138,7 @@ const ItemsTable = ({
                           type="date"
                           value={formatDateForInput(rawValue)}
                           onChange={(e) =>
-                            onEdit(
-                              index,
-                              column.accessor,
-                              e.target.value,
-                              item.isNew
-                            )
+                            onEdit(index, column.id, e.target.value, item.isNew)
                           }
                           className="edit-input"
                         />
@@ -102,19 +148,14 @@ const ItemsTable = ({
                           step="any"
                           value={rawValue || ""}
                           onChange={(e) =>
-                            onEdit(
-                              index,
-                              column.accessor,
-                              e.target.value,
-                              item.isNew
-                            )
+                            onEdit(index, column.id, e.target.value, item.isNew)
                           }
                           onBlur={(e) => {
                             const fmt = parseFloat(e.target.value);
                             if (!isNaN(fmt)) {
                               onEdit(
                                 index,
-                                column.accessor,
+                                column.id,
                                 fmt.toFixed(5),
                                 item.isNew
                               );
@@ -127,12 +168,7 @@ const ItemsTable = ({
                           type={column.type || "text"}
                           value={rawValue || ""}
                           onChange={(e) =>
-                            onEdit(
-                              index,
-                              column.accessor,
-                              e.target.value,
-                              item.isNew
-                            )
+                            onEdit(index, column.id, e.target.value, item.isNew)
                           }
                           className="edit-input"
                         />

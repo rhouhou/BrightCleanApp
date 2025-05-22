@@ -1,13 +1,18 @@
 import React, { useState, useEffect } from "react";
-import { FaPlus, FaSave, FaMinus, FaSearch, } from "react-icons/fa";
+import { FaPlus, FaSave, FaMinus, FaSearch } from "react-icons/fa";
 import DropdownWithAddNew from "../components/DropDownWithAddNew";
 import Pagination from "../components/Pagination";
 import Filters from "../components/Filters.jsx";
-import { fetchItems, saveEdit, cancelEdit, handleDelete, applyExpenseFilters } from "../utils/generalUtils.js";
+import {
+  fetchItems,
+  saveEdit,
+  cancelEdit,
+  handleDeleteAndCleanup,
+  applyExpenseFilters,
+} from "../utils/generalUtils.js";
 import ItemsTable from "../components/ItemsTable.jsx";
 
 const Expenses = () => {
-
   const initialExpense = () => ({
     dateOfExpense: "",
     category: "",
@@ -24,11 +29,13 @@ const Expenses = () => {
   const [newExpenses, setNewExpenses] = useState([]); // Array to store multiple new expenses
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [showValidationError, setShowValidationError] = useState(false);
-  const [categories, setCategories] = useState(["Purchases & Supplies", 
-        "Travel & Transportation", 
-        "Course & Consultation Fees", 
-        "Regular Facility Expenses", 
-        "Irregular Facility Expenses"]);
+  const [categories, setCategories] = useState([
+    "Purchases & Supplies",
+    "Travel & Transportation",
+    "Course & Consultation Fees",
+    "Regular Facility Expenses",
+    "Irregular Facility Expenses",
+  ]);
   const [isFormVisible, setIsFormVisible] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
   const [pagination, setPagination] = useState({
@@ -36,7 +43,7 @@ const Expenses = () => {
     rowsPerPage: 5,
   });
   const [originalItems, setOriginalItems] = useState({});
-  
+
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
@@ -108,11 +115,13 @@ const Expenses = () => {
       name: "selectedCategory",
       label: "Category",
       type: "select",
-      options: ["Purchases & Supplies", 
-        "Travel & Transportation", 
-        "Course & Consultation Fees", 
-        "Regular Facility Expenses", 
-        "Irregular Facility Expenses"],
+      options: [
+        "Purchases & Supplies",
+        "Travel & Transportation",
+        "Course & Consultation Fees",
+        "Regular Facility Expenses",
+        "Irregular Facility Expenses",
+      ],
     },
     { name: "searchName", label: "Name", type: "search", icon: FaSearch },
   ];
@@ -134,7 +143,7 @@ const Expenses = () => {
     const paid = parseFloat(item.paidInUSD);
     const weight = parseFloat(item.weightInGrams);
 
-    if (!isNaN(paid) && !isNaN(weight) && weight !=0){
+    if (!isNaN(paid) && !isNaN(weight) && weight != 0) {
       item.unitPriceInUSD = Number((paid / weight).toFixed(5));
     }
 
@@ -181,17 +190,25 @@ const Expenses = () => {
   };
 
   const handleAddAndSaveExpense = async () => {
-    const { paidInUSD, weightInGrams  } = newExpense;
+    const { paidInUSD, weightInGrams } = newExpense;
     const parsedPaidInUSD = parseFloat(paidInUSD);
     const parsedWeightInGrams = parseFloat(weightInGrams);
 
-    if (isNaN(parsedPaidInUSD) || isNaN(parsedWeightInGrams) || parsedWeightInGrams === 0) {
-      console.error("Invalid values for paidInUSD or weightInGrams. Please provide valid numbers.");
+    if (
+      isNaN(parsedPaidInUSD) ||
+      isNaN(parsedWeightInGrams) ||
+      parsedWeightInGrams === 0
+    ) {
+      console.error(
+        "Invalid values for paidInUSD or weightInGrams. Please provide valid numbers."
+      );
       setShowValidationError(true);
       return;
     }
 
-    const unitPriceInUSD = Number((parsedPaidInUSD / parsedWeightInGrams).toFixed(3));
+    const unitPriceInUSD = Number(
+      (parsedPaidInUSD / parsedWeightInGrams).toFixed(3)
+    );
 
     const generatedExpense = {
       ...newExpense,
@@ -260,11 +277,13 @@ const Expenses = () => {
       accessor: "category",
       isEditable: true,
       type: "select",
-      options: ["Purchases & Supplies", 
-        "Travel & Transportation", 
-        "Course & Consultation Fees", 
-        "Regular Facility Expenses", 
-        "Irregular Facility Expenses"],
+      options: [
+        "Purchases & Supplies",
+        "Travel & Transportation",
+        "Course & Consultation Fees",
+        "Regular Facility Expenses",
+        "Irregular Facility Expenses",
+      ],
     },
     {
       header: "Description",
@@ -334,17 +353,28 @@ const Expenses = () => {
         />
       </div>
 
-
-        {/* Table to display expenses */}
-        <div className="table-panel">
-          <ItemsTable 
+      {/* Table to display expenses */}
+      <div className="table-panel">
+        <ItemsTable
           columns={expensesColumns}
           items={paginatedExpenses}
           onEdit={handleEditChange}
           onDelete={(idOrIndex, isNewExpense) => {
             if (idOrIndex !== undefined && idOrIndex !== null) {
+              handleDeleteAndCleanup({
+                idOrIndex,
+                isNewItem: isNewExpense,
+                type: "expenses",
+                items: expenses,
+                setItems: setExpenses,
+                newItems: newExpenses,
+                setNewItems: setNewExpenses,
+                cleanupConfig: [
+                  { setter: setCategories, getValue: (p) => p.category },
+                ],
+              });
               handleDelete(idOrIndex, isNewExpense, "expenses", setExpenses);
-              setDeleteTarget(null)
+              setDeleteTarget(null);
             } else {
               console.error("Delete target is not properly set:", idOrIndex);
             }
@@ -364,10 +394,12 @@ const Expenses = () => {
           }
           onToggleEditMode={handleToggleEditMode}
         />
-          {/* Pagination */}
-          <Pagination
+        {/* Pagination */}
+        <Pagination
           currentPage={pagination.currentPage}
-          totalPages={Math.ceil(filteredExpenses.length / pagination.rowsPerPage)}
+          totalPages={Math.ceil(
+            filteredExpenses.length / pagination.rowsPerPage
+          )}
           onPageChange={(page) =>
             setPagination((prev) => ({ ...prev, currentPage: page }))
           }
@@ -666,8 +698,6 @@ const Expenses = () => {
                   }
                 />
               </div>
-
-             
             </div>
 
             <div

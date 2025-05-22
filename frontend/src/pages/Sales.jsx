@@ -7,7 +7,7 @@ import {
   fetchItems,
   saveEdit,
   cancelEdit,
-  handleDelete,
+  handleDeleteAndCleanup,
   applyFilters,
 } from "../utils/generalUtils.js";
 import ItemsTable from "../components/ItemsTable";
@@ -420,7 +420,20 @@ const Sales = () => {
           onEdit={handleEditChange}
           onDelete={(idOrIndex, isNewSale) => {
             if (idOrIndex !== undefined && idOrIndex !== null) {
-              handleDelete(idOrIndex, isNewSale, "sales", setSales);
+              handleDeleteAndCleanup({
+                idOrIndex,
+                isNewItem: isNewSale,
+                type: "sales",
+                items: sales,
+                setItems: setSales,
+                newItems: newSales,
+                setNewItems: setNewSales,
+                cleanupConfig: [
+                  { setter: setProductNames, getValue: (p) => p.productname },
+                  { setter: setBusinesstypes, getValue: (p) => p.businessType },
+                  { setter: setWithBottles, getValue: (p) => p.isWithBottle },
+                ],
+              });
             } else {
               console.error("Delete target is not properly set:", idOrIndex);
             }

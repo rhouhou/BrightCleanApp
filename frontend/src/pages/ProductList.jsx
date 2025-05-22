@@ -1,34 +1,62 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { FaPlus, FaSave, FaMinus, FaSearch } from "react-icons/fa"; // Icons for buttons
 import DropdownWithAddNew from "../components/DropDownWithAddNew";
 import Filters from "../components/Filters.jsx";
 import Pagination from "../components/Pagination";
-import { fetchItems, saveEdit, cancelEdit, handleDelete, applyProductFilters } from "../utils/generalUtils.js";
+import {
+  fetchItems,
+  saveEdit,
+  cancelEdit,
+  handleDeleteAndCleanup,
+  applyProductFilters,
+} from "../utils/generalUtils.js";
 import ItemsTable from "../components/ItemsTable.jsx";
 
-const ProductList = () => {
+// Define your price tiers in one place:
+const priceTierOptions = [
+  {
+    value: "retail_with_bottle",
+    label: "Retail w/ Bottle (LL)",
+    currency: "LL",
+  },
+  {
+    value: "retail_without_bottle",
+    label: "Retail w/o Bottle (LL)",
+    currency: "LL",
+  },
+  {
+    value: "wholesale_schools",
+    label: "Wholesale (Schools) (LL) per Litre",
+    currency: "LL",
+  },
+  {
+    value: "wholesale_restaurants",
+    label: "Wholesale (Restaurants) (LL) per Litre",
+    currency: "LL",
+  },
+];
 
+const ProductList = () => {
   const initialProduct = () => ({
     productId: "",
     category: "",
     scent: "",
     color: "",
     productname: "",
-    botlesize: "",
+    bottlesize: "",
+    bottlecost: "",
     cost: "",
     totalcost: "",
-    sellPriceLLwithBottle: "",
-    sellPriceUSDwithBottle: "",
-    sellPriceLLwithoutBottle: "",
-    sellPriceUSDwithoutBottle: "",
+    prices: priceTierOptions.map(({ value, currency }) => ({
+      tier: value,
+      amount: "",
+      currency,
+    })),
   });
 
-  const [newProduct, setNewProduct] = useState(initialProduct()); 
+  const [newProduct, setNewProduct] = useState(initialProduct());
   const [products, setProducts] = useState([]);
-  const [loading, setLoading] = useState();
-  const [newProducts, setNewProducts] = useState([]); 
-  const [deleteTarget, setDeleteTarget] = useState(null);
-  const [showValidationError, setShowValidationError] = useState(false);
+  const [newProducts, setNewProducts] = useState([]);
   const [categories, setCategories] = useState([
     "Handwash",
     "Laundry Detergent",
@@ -51,14 +79,30 @@ const ProductList = () => {
     "blue",
     "colorless",
   ]);
-  const [isFormVisible, setIsFormVisible] = useState(false);
-  const [successMessage, setSuccessMessage] = useState("");
+  const [filters, setFilters] = useState({
+    selectedCategory: "",
+    selectedScent: "",
+    selectedColor: "",
+    searchName: "",
+  });
   const [pagination, setPagination] = useState({
     currentPage: 1,
     rowsPerPage: 5,
   });
   const [originalItems, setOriginalItems] = useState({});
- 
+  const [isFormVisible, setIsFormVisible] = useState(false);
+  const [successMessage, setSuccessMessage] = useState("");
+  const [showValidationError, setShowValidationError] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [loading, setLoading] = useState();
+
+  useEffect(() => {
+    const c = parseFloat(newProduct.cost) || 0;
+    const bc = parseFloat(newProduct.bottlecost) || 0;
+    const sum = (c + bc).toFixed(2);
+    setNewProduct((prev) => ({ ...prev, totalcost: sum }));
+  }, [newProduct.cost, newProduct.bottlecost]);
+
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
@@ -66,14 +110,34 @@ const ProductList = () => {
         const productData = await fetchItems("/api/products");
         console.log("Fetched Products Data:", productData);
 
-        setProducts(
-          productData.map((product) => ({
-            ...product,
-            isEditing: false,
-          }))
-        );
+        const formattedProducts = productData.map((product) => ({
+          ...product,
+          isEditing: false,
+          prices: priceTierOptions.map(({ value, currency }) => {
+            const existing = product.prices?.find((p) => p.tier === value);
+            return existing
+              ? { ...existing, currency }
+              : { tier: value, amount: 0, currency };
+          }),
+        }));
+
+        setProducts((prevProducts) => {
+          const updatedProducts = formattedProducts.map((mat) => {
+            const prevItem = prevProducts.find((prev) => prev._id === mat._id);
+            return prevItem ? { ...mat, isEditing: prevItem.isEditing } : mat;
+          });
+
+          // Reset Pagination
+          setPagination((prev) => ({
+            ...prev,
+            totalItems: updatedProducts.length,
+            totalPages: Math.ceil(updatedProducts.length / prev.rowsPerPage),
+            currentPage: 1, // Reset to first page
+          }));
+          return updatedProducts;
+        });
       } catch (err) {
-        console.error("Error fetching products data:", error);
+        console.error("Error fetching products data:", err);
       } finally {
         setLoading(false);
       }
@@ -81,37 +145,23 @@ const ProductList = () => {
     fetchData();
   }, []);
 
-  const toggleFormVisibility = () => {
-    setIsFormVisible((prev) => !prev);
-  };
-
   const isValidProduct = (product) => {
     return (
       product.productId.trim() &&
-    product.category.trim() &&
-    product.scent.trim() &&
-    product.color.trim() &&
-    parseFloat(product.botlesize) > 0 &&
-    parseFloat(product.cost) > 0 &&
-    parseFloat(product.totalcost) > 0 &&
-    parseFloat(product.sellPriceLLwithBottle) > 0 &&
-    parseFloat(product.sellPriceLLwithoutBottle) > 0
+      product.category.trim() &&
+      product.scent.trim() &&
+      product.color.trim() &&
+      parseFloat(product.bottlesize) > 0 &&
+      parseFloat(product.bottlecost) > 0 &&
+      parseFloat(product.cost) > 0 &&
+      parseFloat(product.totalcost) > 0 &&
+      product.prices.every((p) => parseFloat(p.amount) > 0)
     );
   };
 
-  const confirmDelete = (idOrIndex, isNewProduct) => {
-    console.log(
-      `Confirm delete: ID or Index: ${idOrIndex}, isNew: ${isNewProduct}`
-    );
-    setDeleteTarget({ idOrIndex, isNewProduct });
+  const toggleFormVisibility = () => {
+    setIsFormVisible((prev) => !prev);
   };
-
-  const [filters, setFilters] = useState({
-    selectedCategory: "",
-    selectedScent: "",
-    selectedColor: "",
-    searchName: "",
-  });
 
   const handleResetFilters = () => {
     setFilters({
@@ -127,19 +177,19 @@ const ProductList = () => {
       name: "selectedCategory",
       label: "Category",
       type: "select",
-      options: ["Handwash", "Laundry Detergent", "Floor Cleaner", "Dish Soap", "Odex Cleaner", "Flash Cleaner",],
+      options: categories,
     },
     {
       name: "selectedScent",
       label: "Scent",
       type: "select",
-      options: [ "Amarij", "Apple", "Lavender", "Bubble",],
+      options: scents,
     },
     {
       name: "selectedColor",
       label: "Color",
       type: "select",
-      options: ["Red", "Green", "Violet", "Pink", "blue", "colorless",],
+      options: colors,
     },
     { name: "searchName", label: "Name", type: "search", icon: FaSearch },
   ];
@@ -147,57 +197,109 @@ const ProductList = () => {
   const filteredProducts = applyProductFilters(products, filters);
 
   const handleProductChange = (fieldName, value) => {
-    console.log(`Updating ${fieldName} with value: ${value}`);
     setNewProduct((prevProduct) => {
       const updatedProduct = { ...prevProduct, [fieldName]: value };
+
+      const clampNonNeg = (val) => {
+        const n = parseFloat(val);
+        if (isNaN(n)) return "";
+        return Math.max(0, n);
+      };
+
+      if (
+        [
+          "cost",
+          "bottlecost",
+          "bottlesize",
+          "retail_with_bottle",
+          "retail_without_bottle",
+          "wholesale_schools",
+          "wholesale_restaurants",
+        ].includes(fieldName)
+      ) {
+        // Clamp non-negative values for cost, bottlecost, and bottlesize
+        updatedProduct[fieldName] = clampNonNeg(value);
+        // Recalculate totalcost if cost or bottlecost changes
+        if (fieldName === "cost" || fieldName === "bottlecost") {
+          const c = parseFloat(updatedProduct.cost) || 0;
+          const b = parseFloat(updatedProduct.bottlecost) || 0;
+          updatedProduct.totalcost = (c + b).toFixed(2);
+        }
+      } else if (
+        fieldName === "bottlesize" ||
+        fieldName === "category" ||
+        fieldName === "scent" ||
+        fieldName === "color"
+      ) {
+        updatedProduct.productname = `${updatedProduct.category || ""}_${
+          updatedProduct.scent || ""
+        }_${updatedProduct.color || ""}_${updatedProduct.bottlesize}L`.trim();
+      }
       return updatedProduct;
     });
   };
 
+  const handlePriceChange = (index, rawValue) => {
+    const raw = parseFloat(rawValue);
+    const amount = isNaN(raw) ? 0 : Math.max(0, raw);
+
+    setNewProduct((prev) => {
+      const prices = [...prev.prices];
+      prices[index] = {
+        ...prices[index],
+        amount,
+      };
+      return { ...prev, prices };
+    });
+  };
+
   const handleEditChange = (index, field, value, isNew) => {
-    const updateProduct = (product, isNew) => {
-      // Update the changed field
-      const updatedProduct = { ...product, [field]: value };
+    const updateList = isNew ? [...newProducts] : [...products];
+    const itemToEdit = updateList[index];
 
-      // Recalculate `productname` if category, scent, or color changes
-      if (["category", "scent", "color"].includes(field)) {
-        updatedProduct.productname = `${updatedProduct.category || ""}_${
-          updatedProduct.scent || ""
-        }_${updatedProduct.color || ""}`.trim();
-      }
+    if (!itemToEdit) {
+      console.error("Item to edit not found:", index);
+      return;
+    }
 
-      // Recalculate `sellPriceUSDwithBottle` and `sellPriceUSDwithoutBottle` if relevant fields change
-      if (
-        ["sellPriceLLwithBottle", "sellPriceLLwithoutBottle"].includes(field)
-      ) {
-        if (field === "sellPriceLLwithBottle") {
-          updatedProduct.sellPriceUSDwithBottle = (value / 90000).toFixed(2);
-        }
-        if (field === "sellPriceLLwithoutBottle") {
-          updatedProduct.sellPriceUSDwithoutBottle = (value / 90000).toFixed(2);
-        }
-      }
-
-      return updatedProduct;
+    const item = {
+      ...itemToEdit,
+      prices: itemToEdit.prices.map((p) => ({ ...p })),
     };
 
-    if (isNew) {
-      // Handle edits for new products
-      const updatedNewProducts = [...newProducts];
-      updatedNewProducts[index] = updateProduct(
-        updatedNewProducts[index],
-        true
+    if (field === "prices") {
+      // ─── price-tier column ───────────────────────────────
+      item.prices = item.prices.map((p) =>
+        p.tier === value.tier ? { ...p, amount: value.amount } : p
       );
-      setNewProducts(updatedNewProducts);
-    } else {
-      // Handle edits for existing products
-      const updatedProducts = [...products];
-      updatedProducts[index] = updateProduct(updatedProducts[index], false);
-      setProducts(updatedProducts);
+    } else if (
+      ["bottlesize", "bottlecost", "cost", "totalcost"].includes(field)
+    ) {
+      const num = Math.max(0, parseFloat(value) || 0);
+      item[field] = num;
+
+      if (field === "cost" || field === "bottlecost") {
+        item.totalcost = (
+          parseFloat(item.cost) + parseFloat(item.bottlecost)
+        ).toFixed(2);
+      }
+
+      // no need for bottlesize here to re-compute productname, we’ll do that below
+    } else if (["category", "scent", "color"].includes(field)) {
+      item[field] = value;
     }
+
+    item.productname = `${item.category || ""}_${item.scent || ""}_${
+      item.color || ""
+    }_${item.bottlesize}L`.trim();
+
+    updateList[index] = item;
+    if (isNew) setNewProducts(updateList);
+    else setProducts(updateList);
   };
 
   const handleSaveEdit = (product, index, isNew) => {
+    console.log("SAVING PRODUCT:", JSON.stringify(product, null, 2));
     saveEdit({
       item: product,
       index,
@@ -214,10 +316,14 @@ const ProductList = () => {
   const handleToggleEditMode = (index, isNew) => {
     if (isNew) {
       const updatedNewItems = [...newProducts];
+      if (!updatedNewItems[index])
+        return console.error("No new item at:", index);
+
       updatedNewItems[index].isEditing = true;
       setNewProducts(updatedNewItems);
     } else {
       const updatedItems = [...products];
+      if (!updatedItems[index]) return console.error("No product at:", index);
 
       // Save the original value before setting edit mode
       setOriginalItems((prev) => ({
@@ -231,23 +337,13 @@ const ProductList = () => {
   };
 
   const handleAddAndSaveProduct = async () => {
-    const {
-      category,
-      scent,
-      color,
-      sellPriceLLwithBottle,
-      sellPriceLLwithoutBottle,
-    } = newProduct;
+    const { category, scent, color, bottlesize } = newProduct;
 
     const generatedProduct = {
       ...newProduct,
-      productname: `${category || ""}_${scent || ""}_${color || ""}`.trim(),
-      sellPriceUSDwithBottle: sellPriceLLwithBottle
-        ? (sellPriceLLwithBottle / 90000).toFixed(2)
-        : "",
-      sellPriceUSDwithoutBottle: sellPriceLLwithoutBottle
-        ? (sellPriceLLwithoutBottle / 90000).toFixed(2)
-        : "",
+      productname: `${category || ""}_${scent || ""}_${color || ""}_${
+        bottlesize || ""
+      }L`.trim(),
       isNew: true,
     };
 
@@ -271,6 +367,11 @@ const ProductList = () => {
       }
 
       const savedProduct = await response.json();
+      savedProduct.prices = newProduct.prices.map((p) => ({
+        tier: p.tier,
+        amount: Math.max(0, parseFloat(p.amount) || 0),
+        currency: p.currency,
+      }));
 
       // Update the product list with the saved product from the backend
       setProducts((prev) => [savedProduct, ...prev]);
@@ -282,13 +383,10 @@ const ProductList = () => {
         scent: "",
         color: "",
         productname: "",
-        botlesize: "",
+        bottlesize: "",
+        bottlecost: "",
         cost: "",
         totalcost: "",
-        sellPriceLLwithBottle: "",
-        sellPriceUSDwithBottle: "",
-        sellPriceLLwithoutBottle: "",
-        sellPriceUSDwithoutBottle: "",
       });
 
       setShowValidationError(false);
@@ -304,106 +402,238 @@ const ProductList = () => {
     }
   };
 
-  const productsColumns = [
+  const baseColumns = [
     {
+      id: "productId",
       header: "Product ID",
       accessor: "productId",
       type: "text",
       isEditable: false,
     },
     {
+      id: "category",
       header: "Category",
       accessor: "category",
+      type: "text",
       isEditable: false,
-      type: "select",
-      options: ["Handwash",
-    "Laundry Detergent",
-    "Floor Cleaner",
-    "Dish Soap",
-    "Odex Cleaner",
-    "Flash Cleaner",],
     },
     {
+      id: "scent",
       header: "Scent",
       accessor: "scent",
+      type: "text",
       isEditable: false,
-      type: "select",
-      options: [ "Amarij",
-        "Apple",
-        "Lavender",
-        "Bubble",],
     },
     {
+      id: "color",
       header: "Color",
       accessor: "color",
+      type: "text",
       isEditable: false,
-      type: "select",
-      options: ["Red",
-    "Green",
-    "Violet",
-    "Pink",
-    "blue",
-    "colorless",],
     },
     {
+      id: "productname",
       header: "Product Name",
       accessor: "productname",
-      isEditable: false,
       type: "text",
+      isEditable: false,
     },
     {
-      header: "Bottle Size",
-      accessor: "botlesize",
-      isEditable: true,
+      id: "bottlesize",
+      header: "Bottle Size (L)",
+      accessor: "bottlesize",
       type: "number",
+      isEditable: true,
+      min: 0,
+      step: 1,
     },
     {
+      id: "bottlecost",
+      header: "Bottle Cost ($)",
+      accessor: "bottlecost",
+      type: "number",
+      isEditable: true,
+      min: 0,
+      step: 1,
+    },
+    {
+      id: "cost",
       header: "Cost ($)",
       accessor: "cost",
-      isEditable: true,
       type: "number",
+      isEditable: true,
+      min: 0,
+      step: 1,
     },
     {
-      header: "Total Cost",
+      id: "totalcost",
+      header: "Total Cost ($)",
       accessor: "totalcost",
-      isEditable: true,
       type: "number",
-    },
-    {
-      header: "Price with Bottle (LL)",
-      accessor: "sellPriceLLwithBottle",
-      isEditable: true,
-      type: "number",
-    },
-    {
-      header: "Price with Bottle ($)",
-      accessor: "sellPriceUSDwithBottle",
       isEditable: false,
-      type: "number",
-    },
-    {
-      header: "Price without Bottle (LL)",
-      accessor: "sellPriceLLwithoutBottle",
-      isEditable: false,
-      type: "number",
-    },
-    {
-      header: "Price without Bottle ($)",
-      accessor: "sellPriceUSDwithoutBottle",
-      isEditable: false,
-      type: "number",
     },
   ];
 
+  const priceColumns = priceTierOptions.map(({ value, label }) => {
+    const [main, suffix] = label.split(/( per Litre)/);
+    return {
+      id: value,
+      header: (
+        <>
+          {main}
+          {suffix && (
+            <>
+              <br />
+              <span className="italic font-semibold text-gray-400">
+                {suffix.trim()}
+              </span>
+            </>
+          )}
+        </>
+      ),
+      accessor: (row) => {
+        const tier = row.prices?.find((p) => p.tier === value);
+        return tier ? tier.amount : "";
+      },
+      type: "number",
+      isEditable: true,
+      onEdit: (rowIndex, _, newVal, isNew) =>
+        handleEditChange(
+          rowIndex,
+          "prices",
+          { tier: value, amount: newVal },
+          isNew
+        ),
+    };
+  });
 
- // pagination
- const { currentPage, rowsPerPage } = pagination;
- const startIndex = (currentPage - 1) * rowsPerPage;
- const paginatedProducts = filteredProducts.slice(
-   startIndex,
-   startIndex + rowsPerPage
- );
+  const productColumns = [
+    ...baseColumns,
+    {
+      header: "Prices",
+      columns: priceColumns,
+    },
+  ];
 
+  const onPageEdit = (pageIndex, column, rawValue, isNew) => {
+    const activeList = filters.searchName ? filteredProducts : products;
+    const start = (pagination.currentPage - 1) * pagination.rowsPerPage;
+    const activeItem = activeList[start + pageIndex];
+    if (!activeItem) return console.error("No item at pageIndex", pageIndex);
+
+    // 3) find its index in the **full** array
+    const fullList = isNew ? newProducts : products;
+    const originalIndex = fullList.findIndex(
+      (m) => m._id === activeItem._id || m.productId === activeItem.productId
+    );
+    if (originalIndex === -1)
+      return console.error("Can’t find original item", activeItem);
+
+    if (priceTierOptions.some((o) => o.value === column)) {
+      // price-tier column
+      const amount = Math.max(0, parseFloat(rawValue) || 0);
+      handleEditChange(
+        originalIndex,
+        "prices",
+        { tier: column, amount },
+        isNew
+      );
+    } else {
+      const isNumfield = [
+        "bottlesize",
+        "bottlecost",
+        "cost",
+        "totalcost",
+      ].includes(column);
+      const value = isNumfield
+        ? Math.max(0, parseFloat(rawValue) || 0)
+        : rawValue;
+      handleEditChange(originalIndex, column, value, isNew);
+    }
+  };
+
+  const onPageToggle = (pageIndex, isNew) => {
+    const activeList = filters.searchName ? filteredProducts : products;
+    const start = (pagination.currentPage - 1) * pagination.rowsPerPage;
+    const activeItem = activeList[start + pageIndex];
+    const fullList = isNew ? newProducts : products;
+    const originalIndex = fullList.findIndex(
+      (m) => m._id === activeItem._id || m.productId === activeItem.productId
+    );
+
+    handleToggleEditMode(originalIndex, isNew);
+  };
+
+  const onPageSave = (item, pageIndex, isNew) => {
+    const activeList = filters.searchName ? filteredProducts : products;
+    const start = (pagination.currentPage - 1) * pagination.rowsPerPage;
+    const activeItem = activeList[start + pageIndex];
+    if (!activeItem) return console.error("No item at pageIndex", pageIndex);
+
+    const fullList = isNew ? newProducts : products;
+    const originalIndex = fullList.findIndex(
+      (m) => m._id === activeItem._id || m.productId === activeItem.productId
+    );
+
+    if (originalIndex === -1) {
+      console.error("Could not find original item to save", activeItem);
+      return;
+    }
+    handleSaveEdit(item, originalIndex, isNew);
+  };
+
+  const onPageCancel = (pageIndex, isNew) => {
+    const activeList = filters.searchName ? filteredProducts : products;
+    const start = (pagination.currentPage - 1) * pagination.rowsPerPage;
+    const activeItem = activeList[start + pageIndex];
+    const fullList = isNew ? newProducts : products;
+    const originalIndex = fullList.findIndex(
+      (m) => m._id === activeItem._id || m.productId === activeItem.productId
+    );
+
+    cancelEdit({
+      index: originalIndex,
+      isNew,
+      newItems: newProducts,
+      setNewItems: setNewProducts,
+      items: products,
+      setItems: setProducts,
+      originalItems,
+      setOriginalItems,
+    });
+  };
+
+  // pagination
+  const { currentPage, rowsPerPage } = pagination;
+  const activeProducts = filters.searchName ? filteredProducts : products;
+  const startIndex = (currentPage - 1) * rowsPerPage;
+  const paginatedProducts = activeProducts.slice(
+    startIndex,
+    startIndex + rowsPerPage
+  );
+
+  const formFields = [
+    { name: "productId", label: "Product ID", type: "text", readOnly: false },
+    {
+      name: "bottlesize",
+      label: "Bottle Size (L)",
+      type: "number",
+      readOnly: false,
+    },
+    {
+      name: "bottlecost",
+      label: "Bottle Cost ($)",
+      type: "number",
+      readOnly: false,
+    },
+    { name: "cost", label: "Cost ($)", type: "number", readOnly: false },
+    {
+      name: "totalcost",
+      label: "Total Cost ($)",
+      type: "number",
+      readOnly: true,
+    },
+  ];
 
   return (
     <div>
@@ -413,8 +643,8 @@ const ProductList = () => {
           <h1 className="page-title">Products Overview</h1>
         </div>
 
-         {/* Filters */}
-         <Filters
+        {/* Filters */}
+        <Filters
           filtersConfig={productsFiltersConfig}
           filters={filters}
           setFilters={(updatedFilter) => {
@@ -425,43 +655,44 @@ const ProductList = () => {
           }}
           onResetFilters={handleResetFilters}
         />
-        </div>
+      </div>
 
-        {/* Table Section */}
-        <div className="table-panel">
-
-        <ItemsTable 
-          columns={productsColumns}
+      {/* Table Section */}
+      <div className="table-panel">
+        <ItemsTable
+          columns={productColumns}
           items={paginatedProducts}
-          onEdit={handleEditChange}
+          onEdit={onPageEdit}
           onDelete={(idOrIndex, isNewProduct) => {
             if (idOrIndex !== undefined && idOrIndex !== null) {
-              handleDelete(idOrIndex, isNewProduct, "products", setProducts);
-              setDeleteTarget(null)
+              handleDeleteAndCleanup({
+                idOrIndex,
+                isNewItem: isNewProduct,
+                type: "products",
+                items: products,
+                setItems: setProducts,
+                newItems: newProducts,
+                setNewItems: setNewProducts,
+                cleanupConfig: [
+                  { setter: setCategories, getValue: (p) => p.category },
+                  { setter: setScents, getValue: (p) => p.scent },
+                  { setter: setColors, getValue: (p) => p.color },
+                ],
+              });
+              setDeleteTarget(null);
             } else {
               console.error("Delete target is not properly set:", idOrIndex);
             }
           }}
-          onSaveEdit={handleSaveEdit}
-          onCancelEdit={(index, isNew) =>
-            cancelEdit({
-              index,
-              isNew,
-              newItems: newProducts,
-              setNewItems: setNewProducts,
-              items: products,
-              setItems: setProducts,
-              originalItems,
-              setOriginalItems,
-            })
-          }
-          onToggleEditMode={handleToggleEditMode}
+          onSaveEdit={onPageSave}
+          onCancelEdit={onPageCancel}
+          onToggleEditMode={onPageToggle}
         />
 
-          {/* Pagination */}
-          <Pagination
+        {/* Pagination */}
+        <Pagination
           currentPage={pagination.currentPage}
-          totalPages={Math.ceil(filteredProducts.length / pagination.rowsPerPage)}
+          totalPages={Math.ceil(activeProducts.length / pagination.rowsPerPage)}
           onPageChange={(page) =>
             setPagination((prev) => ({ ...prev, currentPage: page }))
           }
@@ -469,13 +700,15 @@ const ProductList = () => {
       </div>
 
       {/* Section 2: Add New Product */}
-      <div style={{
-        margin: "20px auto", // Center the section horizontally
-        maxWidth: "95%", // Aligns with table width
-        display: "flex",
-        flexDirection: "column", // Stack elements vertically
-        gap: "15px", // Adds space between button and table
-      }}>
+      <div
+        style={{
+          margin: "20px auto", // Center the section horizontally
+          maxWidth: "95%", // Aligns with table width
+          display: "flex",
+          flexDirection: "column", // Stack elements vertically
+          gap: "15px", // Adds space between button and table
+        }}
+      >
         <button
           className={`button button-add ${isFormVisible ? "close" : "add"}`}
           onClick={toggleFormVisibility}
@@ -562,227 +795,87 @@ const ProductList = () => {
                 }
               />
 
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  border: "1px solid #ccc",
-                  borderRadius: "5px",
-                  padding: "10px",
-                  backgroundColor: "#fff",
-                  width: "450px",
-                  gap: "10px",
-                }}
-              >
-                <label
-                  htmlFor="productId"
-                  className="text-gray-600"
-                  style={{ fontWeight: "bold", margin: "0" }}
-                >
-                  Product ID:
-                </label>
-                <input
-                  id="productId"
-                  type="text"
-                  placeholder="Enter Value"
+              {formFields.map(({ name, label, type, readOnly }) => (
+                <div
                   style={{
-                    outline: "none",
-                    border: "none",
-                    flex: 1,
-                    color: "#888",
+                    display: "flex",
+                    alignItems: "center",
+                    border: "1px solid #ccc",
+                    borderRadius: "5px",
+                    padding: "10px",
+                    backgroundColor: "#fff",
+                    width: "450px",
+                    gap: "10px",
                   }}
-                  value={newProduct.productId}
-                  onChange={(e) =>
-                    handleProductChange("productId", e.target.value)
-                  }
-                />
-              </div>
+                  key={name}
+                >
+                  <label
+                    className="text-gray-600"
+                    style={{ fontWeight: "bold", margin: "0" }}
+                  >
+                    {label}:
+                  </label>
+                  <input
+                    type={type}
+                    placeholder={readOnly ? undefined : `Enter ${label}`}
+                    style={{
+                      outline: "none",
+                      border: "none",
+                      flex: 1,
+                      color: readOnly ? "#555" : "#888",
+                    }}
+                    value={newProduct[name]}
+                    readOnly={readOnly}
+                    onChange={(e) =>
+                      !readOnly && handleProductChange(name, e.target.value)
+                    }
+                  />
+                </div>
+              ))}
 
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  border: "1px solid #ccc",
-                  borderRadius: "5px",
-                  padding: "10px",
-                  backgroundColor: "#fff",
-                  width: "450px",
-                  gap: "10px",
-                }}
-              >
-                <label
-                  htmlFor="botlesize"
-                  className="text-gray-600"
-                  style={{ fontWeight: "bold", margin: "0" }}
-                >
-                  Bottle Size:
-                </label>
-                <input
-                  id="botlesize"
-                  type="number"
-                  placeholder="Enter Value"
-                  style={{
-                    outline: "none",
-                    border: "none",
-                    flex: 1,
-                    color: "#888",
-                  }}
-                  value={newProduct.botlesize}
-                  min={0}
-                  onChange={(e) =>
-                    handleProductChange("botlesize", e.target.value)
-                  }
-                />
-              </div>
-
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  border: "1px solid #ccc",
-                  borderRadius: "5px",
-                  padding: "10px",
-                  backgroundColor: "#fff",
-                  width: "450px",
-                  gap: "10px",
-                }}
-              >
-                <label
-                  htmlFor="cost"
-                  className="text-gray-600"
-                  style={{ fontWeight: "bold", margin: "0" }}
-                >
-                  Cost ($):
-                </label>
-                <input
-                  id="cost"
-                  type="number"
-                  placeholder="Enter Value"
-                  style={{
-                    outline: "none",
-                    border: "none",
-                    flex: 1,
-                    color: "#888",
-                  }}
-                  value={newProduct.cost}
-                  min={0}
-                  onChange={(e) => handleProductChange("cost", e.target.value)}
-                />
-              </div>
-
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  border: "1px solid #ccc",
-                  borderRadius: "5px",
-                  padding: "10px",
-                  backgroundColor: "#fff",
-                  width: "450px",
-                  gap: "10px",
-                }}
-              >
-                <label
-                  htmlFor="totalcost"
-                  className="text-gray-600"
-                  style={{ fontWeight: "bold", margin: "0" }}
-                >
-                  Total Cost ($):
-                </label>
-                <input
-                  id="totalcost"
-                  type="number"
-                  placeholder="Enter Value"
-                  style={{
-                    outline: "none",
-                    border: "none",
-                    flex: 1,
-                    color: "#888",
-                  }}
-                  value={newProduct.totalcost}
-                  min={0}
-                  onChange={(e) =>
-                    handleProductChange("totalcost", e.target.value)
-                  }
-                />
-              </div>
-
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  border: "1px solid #ccc",
-                  borderRadius: "5px",
-                  padding: "10px",
-                  backgroundColor: "#fff",
-                  width: "450px",
-                  gap: "10px",
-                }}
-              >
-                <label
-                  htmlFor="sellPriceLLwithBottle"
-                  className="text-gray-600"
-                  style={{ fontWeight: "bold", margin: "0" }}
-                >
-                  Price with Bottle (LL):
-                </label>
-                <input
-                  id="sellPriceLLwithBottle"
-                  type="number"
-                  placeholder="Enter Value"
-                  style={{
-                    outline: "none",
-                    border: "none",
-                    flex: 1,
-                    color: "#888",
-                  }}
-                  value={newProduct.sellPriceLLwithBottle}
-                  min={0}
-                  onChange={(e) =>
-                    handleProductChange("sellPriceLLwithBottle", e.target.value)
-                  }
-                />
-              </div>
-
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  border: "1px solid #ccc",
-                  borderRadius: "5px",
-                  padding: "10px",
-                  backgroundColor: "#fff",
-                  width: "450px",
-                  gap: "10px",
-                }}
-              >
-                <label
-                  htmlFor="sellPriceLLwithoutBottle"
-                  className="text-gray-600"
-                  style={{ fontWeight: "bold", margin: "0" }}
-                >
-                  Price without Bottle (LL):
-                </label>
-                <input
-                  id="sellPriceLLwithoutBottle"
-                  type="number"
-                  placeholder="Enter Value"
-                  style={{
-                    outline: "none",
-                    border: "none",
-                    flex: 1,
-                    color: "#888",
-                  }}
-                  value={newProduct.sellPriceLLwithoutBottle}
-                  min={0}
-                  onChange={(e) =>
-                    handleProductChange(
-                      "sellPriceLLwithoutBottle",
-                      e.target.value
-                    )
-                  }
-                />
-              </div>
+              {/* Dynamic price tiers */}
+              {newProduct.prices.map((p, i) => {
+                const { label } = priceTierOptions.find(
+                  (o) => o.value === p.tier
+                );
+                return (
+                  <div
+                    key={p.tier}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      border: "1px solid #ccc",
+                      borderRadius: "5px",
+                      padding: "10px",
+                      backgroundColor: "#fff",
+                      width: "450px",
+                      gap: "10px",
+                    }}
+                  >
+                    <label
+                      className="text-gray-600"
+                      style={{ fontWeight: "bold", margin: "0" }}
+                    >
+                      {label}:
+                    </label>
+                    <input
+                      type="number"
+                      min={0}
+                      step={0.01}
+                      placeholder="Enter price"
+                      value={p.amount}
+                      onChange={(e) => handlePriceChange(i, e.target.value)}
+                      style={{
+                        outline: "none",
+                        border: "none",
+                        flex: 1,
+                        color: "#888",
+                      }}
+                      onWheel={(e) => e.target.blur()}
+                    />
+                  </div>
+                );
+              })}
             </div>
 
             <div
