@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect } from "react";
 import { FaPlus, FaSave, FaMinus, FaSearch } from "react-icons/fa"; // Icons for buttons
 import DropdownWithAddNew from "../components/DropDownWithAddNew";
 import Filters from "../components/Filters.jsx";
@@ -299,7 +299,6 @@ const ProductList = () => {
   };
 
   const handleSaveEdit = (product, index, isNew) => {
-    console.log("SAVING PRODUCT:", JSON.stringify(product, null, 2));
     saveEdit({
       item: product,
       index,

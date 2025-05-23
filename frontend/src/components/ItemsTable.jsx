@@ -26,11 +26,9 @@ const ItemsTable = ({
   const hasGroups = columns.some((col) => Array.isArray(col.columns));
 
   // 2) Build the “leaf” array of columns for rendering the body
-  const leafColumns = hasGroups
-    ? columns.flatMap((col) =>
+  const leafColumns = columns.flatMap(col =>
         Array.isArray(col.columns) ? col.columns : [col]
-      )
-    : columns;
+  );
 
   return (
     <>
@@ -66,7 +64,7 @@ const ItemsTable = ({
               {/* ─── Second row: child headers ───────────────────────── */}
               <tr className="border border-gray-300">
                 {columns.map((col, i) =>
-                  col.columns
+                  Array.isArray(col.columns)
                     ? col.columns.map((child, j) => (
                         <th key={`${i}-${j}`} className="th-bordered">
                           {child.header}

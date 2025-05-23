@@ -3,6 +3,11 @@ import mongoose from "mongoose";
 
 const expenseSchema = new mongoose.Schema(
   {
+    transactionsEXP:{
+      type: String,
+      required: true,
+      unique: true,
+    },
     dateOfExpense: {
       type: Date,
       required: true,

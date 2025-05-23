@@ -14,6 +14,9 @@ import ItemsTable from "../components/ItemsTable.jsx";
 
 const Expenses = () => {
   const initialExpense = () => ({
+    transactionsEXP: `EXP-TX-${Date.now()}-${Math.floor(
+      Math.random() * 10000
+    )}`,
     dateOfExpense: "",
     category: "",
     description: "",
@@ -25,10 +28,7 @@ const Expenses = () => {
   });
   const [newExpense, setNewExpense] = useState(initialExpense());
   const [expenses, setExpenses] = useState([]);
-  const [loading, setLoading] = useState();
   const [newExpenses, setNewExpenses] = useState([]); // Array to store multiple new expenses
-  const [deleteTarget, setDeleteTarget] = useState(null);
-  const [showValidationError, setShowValidationError] = useState(false);
   const [categories, setCategories] = useState([
     "Purchases & Supplies",
     "Travel & Transportation",
@@ -36,30 +36,52 @@ const Expenses = () => {
     "Regular Facility Expenses",
     "Irregular Facility Expenses",
   ]);
-  const [isFormVisible, setIsFormVisible] = useState(false);
-  const [successMessage, setSuccessMessage] = useState("");
+  const [filters, setFilters] = useState({
+    fromDate: "",
+    toDate: "",
+    selectedCategory: "",
+    searchName: "",
+  });
+
   const [pagination, setPagination] = useState({
     currentPage: 1,
     rowsPerPage: 5,
   });
   const [originalItems, setOriginalItems] = useState({});
+  const [isFormVisible, setIsFormVisible] = useState(false);
+  const [successMessage, setSuccessMessage] = useState("");
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [showValidationError, setShowValidationError] = useState(false);
+  const [loading, setLoading] = useState();
 
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
       try {
         const expensesData = await fetchItems("/api/expenses");
-
-        // Verify the format of the fetched data
         console.log("Fetched Expenses Data:", expensesData);
 
-        // Assuming expensesData is an array of expense objects
-        setExpenses(
-          expensesData.map((expense) => ({
-            ...expense,
-            isEditing: false,
-          }))
-        );
+        const formattedExpenses = expensesData.map((expense) => ({
+          ...expense,
+          isEditing: false,
+        }));
+
+        setExpenses((prevExpenses) => {
+          const updatedExpenses = formattedExpenses.map((mat) => {
+            const prevItem = prevExpenses.find((prev) => prev._id === mat._id);
+            return prevItem ? { ...mat, isEditing: prevItem.isEditing } : mat;
+          });
+
+          // Reset Pagination
+          setPagination((prev) => ({
+            ...prev,
+            totalItems: updatedExpenses.length,
+            totalPages: Math.ceil(updatedExpenses.length / prev.rowsPerPage),
+            currentPage: 1, // Reset to first page
+          }));
+
+          return updatedExpenses;
+        });
       } catch (error) {
         console.error("Error fetching expenses data:", error);
       } finally {
@@ -68,10 +90,6 @@ const Expenses = () => {
     };
     fetchData();
   }, []);
-
-  const toggleFormVisibility = () => {
-    setIsFormVisible((prev) => !prev);
-  };
 
   const isValidExpense = (expense) => {
     return (
@@ -85,19 +103,9 @@ const Expenses = () => {
     );
   };
 
-  const confirmDelete = (idOrIndex, isNewExpense) => {
-    console.log(
-      `Confirm delete: ID or Index: ${idOrIndex}, isNew: ${isNewExpense}`
-    );
-    setDeleteTarget({ idOrIndex, isNewExpense });
+  const toggleFormVisibility = () => {
+    setIsFormVisible((prev) => !prev);
   };
-
-  const [filters, setFilters] = useState({
-    fromDate: "",
-    toDate: "",
-    selectedCategory: "",
-    searchName: "",
-  });
 
   const handleResetFilters = () => {
     setFilters({
@@ -115,13 +123,7 @@ const Expenses = () => {
       name: "selectedCategory",
       label: "Category",
       type: "select",
-      options: [
-        "Purchases & Supplies",
-        "Travel & Transportation",
-        "Course & Consultation Fees",
-        "Regular Facility Expenses",
-        "Irregular Facility Expenses",
-      ],
+      options: categories,
     },
     { name: "searchName", label: "Name", type: "search", icon: FaSearch },
   ];
@@ -129,22 +131,66 @@ const Expenses = () => {
   const filteredExpenses = applyExpenseFilters(expenses, filters);
 
   const handleExpenseChange = (fieldName, value) => {
-    console.log(`Updating ${fieldName} with value: ${value}`);
     setNewExpense((prevExpense) => {
       const updatedExpense = { ...prevExpense, [fieldName]: value };
+
+      const ll = parseFloat(updatedExpense.paidInLL);
+      const rate = parseFloat(updatedExpense.exchangeRate);
+      const usd = parseFloat(updatedExpense.paidInUSD);
+
+      if (
+        (fieldName === "paidInLL" || fieldName === "exchangeRate") &&
+        !isNaN(ll) &&
+        !isNaN(rate) &&
+        rate != 0
+      ) {
+        updatedExpense.paidInUSD = (ll / rate).toFixed(2);
+      }
+
+      if (fieldName === "paidInUSD") {
+        updatedExpense.paidInLL = "0";
+      }
+
+      const weight = parseFloat(updatedExpense.weightInGrams);
+      const base = !isNaN(usd) ? usd : 0;
+      if (!isNaN(weight) && weight > 0) {
+        updatedExpense.unitPriceInUSD = (base / weight).toFixed(5);
+      }
+
       return updatedExpense;
     });
   };
 
   const handleEditChange = (index, field, value, isNew) => {
     const updateList = isNew ? [...newExpenses] : [...expenses];
-    const item = { ...updateList[index], [field]: value };
+    const original = updateList[index];
+    if (!original) return console.error("No item to edit at", index);
+    const item = { ...original };
+    item[field] = value;
 
-    const paid = parseFloat(item.paidInUSD);
+    const ll = parseFloat(item.paidInLL);
+    const rate = parseFloat(item.exchangeRate);
+    let usd = parseFloat(item.paidInUSD);
+
+    if (
+      (field === "paidInLL" || field === "exchangeRate") &&
+      !isNaN(ll) &&
+      !isNaN(rate) &&
+      rate !== 0
+    ) {
+      usd = ll / rate;
+      item.paidInUSD = usd.toFixed(2);
+    }
+
+    if (field === "paidInUSD") {
+      item.paidInLL = "0";
+      usd = parseFloat(item.paidInUSD);
+    }
+
+    // 5️⃣ recompute unitPriceInUSD
     const weight = parseFloat(item.weightInGrams);
-
-    if (!isNaN(paid) && !isNaN(weight) && weight != 0) {
-      item.unitPriceInUSD = Number((paid / weight).toFixed(5));
+    if (!isNaN(weight) && weight > 0) {
+      item.unitPriceInUSD = (usd / weight).toFixed(5);
     }
 
     updateList[index] = item;
@@ -173,11 +219,13 @@ const Expenses = () => {
   const handleToggleEditMode = (index, isNew) => {
     if (isNew) {
       const updatedNewItems = [...newExpenses];
+      if (!updatedNewItems[index])
+        return console.error("No new item at:", index);
       updatedNewItems[index].isEditing = true;
       setNewExpenses(updatedNewItems);
     } else {
       const updatedItems = [...expenses];
-
+      if (!updatedItems[index]) return console.error("No product at:", index);
       // Save the original value before setting edit mode
       setOriginalItems((prev) => ({
         ...prev,
@@ -207,7 +255,7 @@ const Expenses = () => {
     }
 
     const unitPriceInUSD = Number(
-      (parsedPaidInUSD / parsedWeightInGrams).toFixed(3)
+      (parsedPaidInUSD / parsedWeightInGrams).toFixed(5)
     );
 
     const generatedExpense = {
@@ -242,6 +290,9 @@ const Expenses = () => {
 
       // Reset the form
       setNewExpense({
+        transactionsEXP: `EXP-TX-${Date.now()}-${Math.floor(
+          Math.random() * 10000
+        )}`,
         dateOfExpense: "",
         category: "",
         description: "",
@@ -267,66 +318,143 @@ const Expenses = () => {
 
   const expensesColumns = [
     {
+      header: "Transactions",
+      accessor: "transactionsEXP",
+      id: "transactionsEXP",
+      isEditable: false,
+    },
+    {
       header: "Expense date",
       accessor: "dateOfExpense",
+      id: "dateOfExpense",
       type: "date",
       isEditable: true,
     },
     {
       header: "Category",
       accessor: "category",
+      id: "category",
       isEditable: true,
       type: "select",
-      options: [
-        "Purchases & Supplies",
-        "Travel & Transportation",
-        "Course & Consultation Fees",
-        "Regular Facility Expenses",
-        "Irregular Facility Expenses",
-      ],
+      options: categories,
     },
     {
       header: "Description",
       accessor: "description",
+      id: "description",
       isEditable: true,
       type: "text",
     },
     {
       header: "Weight In Grams",
       accessor: "weightInGrams",
+      id: "weightInGrams",
       isEditable: true,
       type: "number",
     },
     {
       header: "Paid in LL",
       accessor: "paidInLL",
+      id: "paidInLL",
       isEditable: true,
       type: "number",
     },
     {
       header: "Exchange Rate",
       accessor: "exchangeRate",
+      id: "exchangeRate",
       isEditable: true,
       type: "number",
     },
     {
       header: "Paid ($)",
       accessor: "paidInUSD",
+      id: "paidInUSD",
       isEditable: true,
       type: "number",
     },
     {
       header: "Unit Price ($)",
       accessor: "unitPriceInUSD",
+      id: "unitPriceInUSD",
       isEditable: true,
       type: "number",
     },
   ];
 
+  const onPageEdit = (pageIndex, column, rawValue, isNew) => {
+    const activeList = filters.searchName ? filteredExpenses : expenses;
+    const start = (pagination.currentPage - 1) * pagination.rowsPerPage;
+    const activeItem = activeList[start + pageIndex];
+    if (!activeItem) return console.error("No item at pageIndex", pageIndex);
+
+    // 3) find its index in the **full** array
+    const fullList = isNew ? newExpenses : expenses;
+    const originalIndex = fullList.findIndex(
+      (m) => m._id === activeItem._id //|| m.description === activeItem.description
+    );
+    if (originalIndex === -1)
+      return console.error("Can’t find original item", activeItem);
+
+    handleEditChange(originalIndex, column, rawValue, isNew);
+  };
+
+  const onPageToggle = (pageIndex, isNew) => {
+    const activeList = filters.searchName ? filteredExpenses : expenses;
+    const start = (pagination.currentPage - 1) * pagination.rowsPerPage;
+    const activeItem = activeList[start + pageIndex];
+    const fullList = isNew ? newExpenses : expenses;
+    const originalIndex = fullList.findIndex(
+      (m) => m._id === activeItem._id //|| m.description === activeItem.description
+    );
+
+    handleToggleEditMode(originalIndex, isNew);
+  };
+
+  const onPageSave = (item, pageIndex, isNew) => {
+    const activeList = filters.searchName ? filteredExpenses : expenses;
+    const start = (pagination.currentPage - 1) * pagination.rowsPerPage;
+    const activeItem = activeList[start + pageIndex];
+    if (!activeItem) return console.error("No item at pageIndex", pageIndex);
+
+    const fullList = isNew ? newExpenses : expenses;
+    const originalIndex = fullList.findIndex(
+      (m) => m._id === activeItem._id //|| m.description === activeItem.description
+    );
+
+    if (originalIndex === -1) {
+      console.error("Could not find original item to save", activeItem);
+      return;
+    }
+    handleSaveEdit(item, originalIndex, isNew);
+  };
+
+  const onPageCancel = (pageIndex, isNew) => {
+    const activeList = filters.searchName ? filteredExpenses : expenses;
+    const start = (pagination.currentPage - 1) * pagination.rowsPerPage;
+    const activeItem = activeList[start + pageIndex];
+    const fullList = isNew ? newExpenses : expenses;
+    const originalIndex = fullList.findIndex(
+      (m) => m._id === activeItem._id //|| m.transactionsEXP === activeItem.transactionsEXP
+    );
+
+    cancelEdit({
+      index: originalIndex,
+      isNew,
+      newItems: newExpenses,
+      setNewItems: setNewExpenses,
+      items: expenses,
+      setItems: setExpenses,
+      originalItems,
+      setOriginalItems,
+    });
+  };
+
   // pagination
   const { currentPage, rowsPerPage } = pagination;
+  const activeExpenses = filters.searchName ? filteredExpenses : expenses;
   const startIndex = (currentPage - 1) * rowsPerPage;
-  const paginatedExpenses = filteredExpenses.slice(
+  const paginatedExpenses = activeExpenses.slice(
     startIndex,
     startIndex + rowsPerPage
   );
@@ -358,7 +486,7 @@ const Expenses = () => {
         <ItemsTable
           columns={expensesColumns}
           items={paginatedExpenses}
-          onEdit={handleEditChange}
+          onEdit={onPageEdit}
           onDelete={(idOrIndex, isNewExpense) => {
             if (idOrIndex !== undefined && idOrIndex !== null) {
               handleDeleteAndCleanup({
@@ -373,33 +501,19 @@ const Expenses = () => {
                   { setter: setCategories, getValue: (p) => p.category },
                 ],
               });
-              handleDelete(idOrIndex, isNewExpense, "expenses", setExpenses);
               setDeleteTarget(null);
             } else {
               console.error("Delete target is not properly set:", idOrIndex);
             }
           }}
-          onSaveEdit={handleSaveEdit}
-          onCancelEdit={(index, isNew) =>
-            cancelEdit({
-              index,
-              isNew,
-              newItems: newExpenses,
-              setNewItems: setNewExpenses,
-              items: expenses,
-              setItems: setExpenses,
-              originalItems,
-              setOriginalItems,
-            })
-          }
-          onToggleEditMode={handleToggleEditMode}
+          onSaveEdit={onPageSave}
+          onCancelEdit={onPageCancel}
+          onToggleEditMode={onPageToggle}
         />
         {/* Pagination */}
         <Pagination
           currentPage={pagination.currentPage}
-          totalPages={Math.ceil(
-            filteredExpenses.length / pagination.rowsPerPage
-          )}
+          totalPages={Math.ceil(activeExpenses.length / pagination.rowsPerPage)}
           onPageChange={(page) =>
             setPagination((prev) => ({ ...prev, currentPage: page }))
           }
