@@ -44,19 +44,19 @@ const ItemsTable = ({
                       key={i}
                       colSpan={col.columns.length}
                       className={`th-bordered ${
-                        col.header === "Prices" ? "bg-yellow-50" : ""
+                        col.header === "Prices" ? "bg-yellow-50" : "bg-gray-100"
                       }`}
                     >
                       {col.header}
                     </th>
                   ) : (
-                    <th key={i} rowSpan={2} className="th-bordered">
+                    <th key={i} rowSpan={2} className="th-bordered bg-gray-100">
                       {col.header}
                     </th>
                   )
                 )}
                 {showActions && (
-                  <th rowSpan={2} className="th-bordered">
+                  <th rowSpan={2} className="th-bordered bg-gray-100">
                     Actions
                   </th>
                 )}
@@ -66,7 +66,7 @@ const ItemsTable = ({
                 {columns.map((col, i) =>
                   Array.isArray(col.columns)
                     ? col.columns.map((child, j) => (
-                        <th key={`${i}-${j}`} className="th-bordered">
+                        <th key={`${i}-${j}`} className="th-bordered bg-gray-100">
                           {child.header}
                         </th>
                       ))
@@ -78,11 +78,11 @@ const ItemsTable = ({
             // ─── No groups: your original single header row ──────────
             <tr className="border border-gray-300">
               {columns.map((column, colIndex) => (
-                <th key={column.id ?? colIndex} className="th-bordered">
+                <th key={column.id ?? colIndex} className="th-bordered bg-gray-100">
                   {column.header}
                 </th>
               ))}
-              <th className="th-bordered">Actions</th>
+              <th className="th-bordered bg-gray-100">Actions</th>
             </tr>
           )}
         </thead>
