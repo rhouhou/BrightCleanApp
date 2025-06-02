@@ -16,11 +16,17 @@ const saleSchema = new mongoose.Schema(
       type: String,
       required: true,
     },
-    productname: {
+    priceTier:{
       type: String,
+      enum: [
+        "retail_with_bottle", 
+        "retail_without_bottle", 
+        "Wholesale_schools",
+        "wholesale_restaurants"
+      ],
       required: true,
     },
-    isWithBottle: {
+    productname: {
       type: String,
       required: true,
     },

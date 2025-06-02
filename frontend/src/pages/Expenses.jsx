@@ -452,7 +452,7 @@ const Expenses = () => {
 
   // pagination
   const { currentPage, rowsPerPage } = pagination;
-  const activeExpenses = filters.searchName ? filteredExpenses : expenses;
+  const activeExpenses = filteredExpenses;
   const startIndex = (currentPage - 1) * rowsPerPage;
   const paginatedExpenses = activeExpenses.slice(
     startIndex,

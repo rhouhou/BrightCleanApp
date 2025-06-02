@@ -164,7 +164,7 @@ export const applyFilters = (sales, filters) => {
     fromDate,
     toDate,
     selectedBusinessType,
-    selectedIsWithBottle,
+    selectedPriceTier,
     searchName,
   } = filters;
 
@@ -188,10 +188,9 @@ export const applyFilters = (sales, filters) => {
       ? sale.businessType === selectedBusinessType
       : true;
 
-    // Check "With Bottle" filter
-    const matchesIsWithBottle = selectedIsWithBottle
-      ? (sale.isWithBottle === "yes" && selectedIsWithBottle === "yes") ||
-        (sale.isWithBottle === "no" && selectedIsWithBottle === "no")
+    // Check "Price Tier" filter
+    const matchesPriceTier = selectedPriceTier
+      ? sale.priceTier === selectedPriceTier
       : true;
 
     // Check product name filter
@@ -203,7 +202,7 @@ export const applyFilters = (sales, filters) => {
     return (
       matchesDateRange &&
       matchesBusinessType &&
-      matchesIsWithBottle &&
+      matchesPriceTier &&
       matchesName
     );
   });

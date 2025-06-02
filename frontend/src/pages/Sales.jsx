@@ -11,6 +11,7 @@ import {
   applyFilters,
 } from "../utils/generalUtils.js";
 import ItemsTable from "../components/ItemsTable";
+import { parse } from "dotenv";
 
 const Sales = () => {
   const initialSale = () => ({
@@ -18,7 +19,7 @@ const Sales = () => {
     dateOfPurchase: "",
     businessType: "",
     productname: "",
-    isWithBottle: "",
+    priceTier: "",
     quantity: 0,
     unitprice: 0,
     totalamount: 0,
@@ -26,21 +27,33 @@ const Sales = () => {
 
   const [newSale, setNewSale] = useState(initialSale());
   const [sales, setSales] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [newSales, setNewSales] = useState([]);
   const [products, setProducts] = useState([]);
-  const [deleteTarget, setDeleteTarget] = useState(null);
-  const [showValidationError, setShowValidationError] = useState(false);
   const [productNames, setProductNames] = useState([]);
-  const [withBottles, setWithBottles] = useState(["yes", "no"]);
   const [businesstypes, setBusinesstypes] = useState(["B2B", "B2C"]);
-  const [isFormVisible, setIsFormVisible] = useState(false);
-  const [successMessage, setSuccessMessage] = useState("");
+  const [priceTierOptions, setPriceTierOptions] = useState([
+    "retail_with_bottle",
+    "retail_without_bottle",
+    "Wholesale_schools",
+    "wholesale_restaurants",
+  ]);
+  const [filters, setFilters] = useState({
+    fromDate: "",
+    toDate: "",
+    selectedBusinessType: "",
+    selectedPriceTier: "",
+    searchName: "",
+  });
   const [pagination, setPagination] = useState({
     currentPage: 1,
     rowsPerPage: 5,
   });
   const [originalItems, setOriginalItems] = useState({});
+  const [loading, setLoading] = useState(true);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [showValidationError, setShowValidationError] = useState(false);
+  const [isFormVisible, setIsFormVisible] = useState(false);
+  const [successMessage, setSuccessMessage] = useState("");
 
   // Fetch products and sales
   useEffect(() => {
@@ -59,13 +72,25 @@ const Sales = () => {
         // Assuming productData is an array of product objects with a productname property
         setProductNames(productData.map((product) => product.productname));
         setProducts(productData);
-        setSales(
-          salesData.map((sale) => ({
-            ...sale,
 
-            isEditing: false,
-          }))
-        );
+        const formattedSales = salesData.map((sale) => ({
+          ...sale,
+          isEditing: false,
+        }));
+        setSales((prevSales) => {
+          const updatedSales = formattedSales.map((mat) => {
+            const prevItem = prevSales.find((prev) => prev._id === mat._id);
+            return prevItem ? { ...mat, isEditing: prevItem.isEditing } : mat;
+          });
+
+          setPagination((prev) => ({
+            ...prev,
+            totalItems: updatedSales.length,
+            totalPages: Math.ceil(updatedSales.length / prev.rowsPerPage),
+            currentPage: 1, // Reset to first page
+          }));
+          return updatedSales;
+        });
       } catch (error) {
         console.error("Error fetching data:", error);
       } finally {
@@ -75,42 +100,26 @@ const Sales = () => {
     fetchData();
   }, []);
 
-  const toggleFormVisibility = () => {
-    setIsFormVisible((prev) => !prev);
-  };
-
   const isValidSale = (sale) => {
     return (
       sale.dateOfPurchase &&
       sale.businessType &&
       sale.productname &&
-      sale.isWithBottle !== null &&
+      sale.priceTier &&
       sale.quantity
     );
   };
 
-  const confirmDelete = (idOrIndex, isNewSale) => {
-    console.log(
-      `Confirm delete: ID or Index: ${idOrIndex}, isNew: ${isNewSale}`
-    );
-    setDeleteTarget({ idOrIndex, isNewSale });
+  const toggleFormVisibility = () => {
+    setIsFormVisible((prev) => !prev);
   };
-
-  // Filters
-  const [filters, setFilters] = useState({
-    fromDate: "",
-    toDate: "",
-    selectedBusinessType: "",
-    selectedIsWithBottle: "",
-    searchName: "",
-  });
 
   const handleResetFilters = () => {
     setFilters({
       fromDate: "",
       toDate: "",
       selectedBusinessType: "",
-      selectedIsWithBottle: "",
+      selectedPriceTier: "",
       searchName: "",
     });
   };
@@ -125,10 +134,10 @@ const Sales = () => {
       options: ["B2B", "B2C"],
     },
     {
-      name: "selectedIsWithBottle",
-      label: "With Bottle",
+      name: "selectedPriceTier",
+      label: "Price Tier",
       type: "select",
-      options: ["yes", "no"],
+      options: priceTierOptions,
     },
     { name: "searchName", label: "Name", type: "search", icon: FaSearch },
   ];
@@ -137,92 +146,62 @@ const Sales = () => {
 
   // Handle Change, Edit, Save, Cancel, and add functions
   const handleSaleChange = (fieldName, value) => {
-    console.log(`Updating ${fieldName} with value: ${value}`);
     setNewSale((prevSale) => {
       const updatedSale = { ...prevSale, [fieldName]: value };
-
-      console.log("Updated Sale:", updatedSale);
-
-      // Update unit price if productname or isWithBottle changes
-      if (fieldName === "productname" || fieldName === "isWithBottle") {
+      // Update unit price if productname or priceTier changes
+      if (fieldName === "productname" || fieldName === "priceTier") {
         const selectedProduct = products.find(
           (product) => product.productname === updatedSale.productname
         );
-        console.log("Selected Product:", selectedProduct);
-
         if (selectedProduct) {
-          updatedSale.unitprice =
-            updatedSale.isWithBottle === "yes" ||
-            updatedSale.isWithBottle === "no"
-              ? selectedProduct.sellPriceLLwithBottle
-              : selectedProduct.sellPriceLLwithoutBottle;
-
-          // Debug: Log updated unitprice
-          console.log("Updated Unit Price:", updatedSale.unitprice);
+          const tierObj = selectedProduct.prices.find(
+            (p) => p.tier === updatedSale.priceTier
+          );
+          updatedSale.unitprice = tierObj ? tierObj.amount : 0;
         }
       }
-
-      // Recalculate total amount if quantity, unitprice, or isWithBottle changes
-      if (["quantity", "unitprice"].includes(fieldName)) {
+      // Recalculate total amount if quantity, unitprice
+      if (["quantity"].includes(fieldName)) {
         const quantity = parseFloat(updatedSale.quantity) || 0;
-        const unitprice = parseFloat(updatedSale.unitprice) || 0;
-        updatedSale.totalamount = (quantity * unitprice).toFixed(2);
+        updatedSale.totalamount = (quantity * updatedSale.unitprice).toFixed(2);
       }
-
       return updatedSale;
     });
   };
 
-  const handleEditChange = (index, field, value, isNew) => {
-    if (isNew) {
-      const updatedNewSales = [...newSales];
-      updatedNewSales[index] = { ...updatedNewSales[index], [field]: value };
+  const handleEditChange = (absoluteIndex, field, value, isNew) => {
+    const updateList = isNew ? [...newSales] : [...sales];
+    const itemToEdit = updateList[absoluteIndex];
+    if (!itemToEdit) {
+      console.error("No item at absolute index:", absoluteIndex);
+      return;
+    }
+    const updated = { ...itemToEdit, [field]: value };
 
       // Recalculate dependent fields for new sales
-      if (field === "isWithBottle" || field === "productname") {
+      if (field === "priceTier" || field === "productname") {
         const selectedProduct = products.find(
-          (product) =>
-            product.productname === updatedNewSales[index].productname
+          (p) => p.productname === sale.productname
         );
+
         if (selectedProduct) {
-          updatedNewSales[index].unitprice =
-            value === "yes"
-              ? selectedProduct.sellPriceLLwithBottle
-              : selectedProduct.sellPriceLLwithoutBottle;
+          const tierObj = selectedProduct.prices.find(
+            (p) => p.tier === updated.priceTier
+          );
+          updated.unitprice = tierObj ? tierObj.amount : 0;
+          const qty = parseFloat(updated.quantity) || 0;
+          updated.totalamount = (qty * updated.unitprice).toFixed(2);
         }
       }
-      // Recalculate totalamount when quantity, unitprice, or isWithBottle changes
-      if (["quantity", "unitprice", "isWithBottle"].includes(field)) {
-        const quantity = parseFloat(updatedNewSales[index].quantity) || 0;
-        const unitprice = parseFloat(updatedNewSales[index].unitprice) || 0;
-        updatedNewSales[index].totalamount = (quantity * unitprice).toFixed(2);
+      // Recalculate totalamount when quantity, unitprice
+      if (["quantity"].includes(field)) {
+        const quantity = parseFloat(updated.quantity) || 0;
+        updated.totalamount = (quantity * updated.unitprice).toFixed(2);
       }
 
+      updateList[absoluteIndex] = updated;
+      isNew ? setNewSales(updateList) : setSales(updateList);
       setNewSales(updatedNewSales);
-    } else {
-      const updatedSales = [...sales];
-      updatedSales[index] = { ...updatedSales[index], [field]: value };
-
-      // Recalculate dependent fields for existing sales
-      if (field === "isWithBottle" || field === "productname") {
-        const selectedProduct = products.find(
-          (product) => product.productname === updatedSales[index].productname
-        );
-        if (selectedProduct) {
-          updatedSales[index].unitprice =
-            value === "yes"
-              ? selectedProduct.sellPriceLLwithBottle
-              : selectedProduct.sellPriceLLwithoutBottle;
-        }
-      }
-      if (["quantity", "unitprice", "isWithBottle"].includes(field)) {
-        const quantity = parseFloat(updatedSales[index].quantity) || 0;
-        const unitprice = parseFloat(updatedSales[index].unitprice) || 0;
-        updatedSales[index].totalamount = (quantity * unitprice).toFixed(2);
-      }
-
-      setSales(updatedSales);
-    }
   };
 
   const handleSaveEdit = (sale, index, isNew) => {
@@ -246,20 +225,18 @@ const Sales = () => {
       setNewSales(updatedNewItems);
     } else {
       const updatedItems = [...sales];
-
       // Save the original value before setting edit mode
       setOriginalItems((prev) => ({
         ...prev,
         [index]: { ...updatedItems[index] },
       }));
-
       updatedItems[index].isEditing = true;
       setSales(updatedItems);
     }
   };
 
   const handleAddAndSaveSale = async () => {
-    const { productname, isWithBottle, quantity } = newSale;
+    const { productname, quantity } = newSale;
 
     const selectedProduct = products.find(
       (product) => product.productname === productname
@@ -271,11 +248,13 @@ const Sales = () => {
       return;
     }
 
-    // Calculate unitprice based on isWithBottle
-    const unitprice =
-      isWithBottle === "yes" || isWithBottle === "no"
-        ? selectedProduct.sellPriceLLwithBottle
-        : selectedProduct.sellPriceLLwithoutBottle;
+    // Calculate unitprice based on priceTier
+    const tierObj = selectedProduct.prices.find(
+      (p) => p.tier === newSale.priceTier
+    );
+
+    // newSale.priceTier (or priceTier) holds one of those keys:
+    const unitprice = tierObj ? tierObj.amount : 0;
 
     const generatedSale = {
       ...newSale,
@@ -314,10 +293,10 @@ const Sales = () => {
         dateOfPurchase: "",
         businessType: "",
         productname: "",
-        isWithBottle: "",
-        quantity: "",
-        unitprice: "",
-        totalamount: "",
+        priceTier: "",
+        quantity: 0,
+        unitprice: 0,
+        totalamount: 0,
       });
 
       setShowValidationError(false);
@@ -356,11 +335,11 @@ const Sales = () => {
       type: "text",
     },
     {
-      header: "With Bottle",
-      accessor: "isWithBottle",
+      header: "Price Tier",
+      accessor: "priceTier",
       isEditable: true,
       type: "select",
-      options: ["yes", "no"],
+      options: priceTierOptions,
     },
     {
       header: "Quantity",
@@ -382,10 +361,77 @@ const Sales = () => {
     },
   ];
 
+  const onPageEdit = (pageIndex, column, rawValue, isNew) => {
+    const activeList = filters.searchName ? filteredSales : sales;
+    const start = (pagination.currentPage - 1) * pagination.rowsPerPage;
+    const activeItem = activeList[start + pageIndex];
+    if (!activeItem) return console.error("No item at pageIndex", pageIndex);
+    const fullList = isNew ? newSales : sales;
+    const originalIndex = fullList.findIndex(
+      (m) => m._id === activeItem._id
+    );
+    if (originalIndex === -1)
+      return console.error("Could not find original item", activeItem);
+
+    handleEditChange(originalIndex, column, rawValue, isNew);
+  };
+
+  const onPageToggle = (pageIndex, isNew) => {
+    const activeList = filters.searchName ? filteredSales : sales;
+    const start = (pagination.currentPage - 1) * pagination.rowsPerPage;
+    const activeItem = activeList[start + pageIndex];
+    const fullList = isNew ? newSales : sales;
+    const originalIndex = fullList.findIndex(
+      (m) => m._id === activeItem._id
+    );
+
+    handleToggleEditMode(originalIndex, isNew);
+  };
+
+  const onPageSave = (item, pageIndex, isNew) => {
+    const activeList = filters.searchName ? filteredSales : sales;
+    const start = (pagination.currentPage - 1) * pagination.rowsPerPage;
+    const activeItem = activeList[start + pageIndex];
+    if (!activeItem) return console.error("No item at pageIndex", pageIndex);
+    const fullList = isNew ? newSales : sales;
+    const originalIndex = fullList.findIndex(
+      (m) => m._id === activeItem._id
+    );
+
+    if (originalIndex === -1) {
+      console.error("Could not find original item to save", activeItem);
+      return;
+    }
+    handleSaveEdit(item, originalIndex, isNew);
+  };
+
+  const onPageCancel = (pageIndex, isNew) => {
+    const activeList = filters.searchName ? filteredSales : sales;
+    const start = (pagination.currentPage - 1) * pagination.rowsPerPage;
+    const activeItem = activeList[start + pageIndex];
+    const fullList = isNew ? newSales : sales;
+    const originalIndex = fullList.findIndex(
+      (m) => m._id === activeItem._id 
+    );
+
+    cancelEdit({
+      index: originalIndex,
+      isNew,
+      newItems: newSales,
+      setNewItems: setNewSales,
+      items: sales,
+      setItems: setSales,
+      originalItems,
+      setOriginalItems,
+    });
+  };
+
   // pagination
   const { currentPage, rowsPerPage } = pagination;
+  //const activeSales = filters.searchName ? filteredSales : sales;
+  const activeSales = filters.searchName ? filteredSales : sales;;
   const startIndex = (currentPage - 1) * rowsPerPage;
-  const paginatedSales = filteredSales.slice(
+  const paginatedSales = activeSales.slice(
     startIndex,
     startIndex + rowsPerPage
   );
@@ -417,7 +463,7 @@ const Sales = () => {
         <ItemsTable
           columns={salesColumns}
           items={paginatedSales}
-          onEdit={handleEditChange}
+          onEdit={onPageEdit}
           onDelete={(idOrIndex, isNewSale) => {
             if (idOrIndex !== undefined && idOrIndex !== null) {
               handleDeleteAndCleanup({
@@ -431,33 +477,22 @@ const Sales = () => {
                 cleanupConfig: [
                   { setter: setProductNames, getValue: (p) => p.productname },
                   { setter: setBusinesstypes, getValue: (p) => p.businessType },
-                  { setter: setWithBottles, getValue: (p) => p.isWithBottle },
                 ],
               });
+              setDeleteTarget(null);
             } else {
               console.error("Delete target is not properly set:", idOrIndex);
             }
           }}
-          onSaveEdit={handleSaveEdit}
-          onCancelEdit={(index, isNew) =>
-            cancelEdit({
-              index,
-              isNew,
-              newItems: newSales,
-              setNewItems: setNewSales,
-              items: sales,
-              setItems: setSales,
-              originalItems,
-              setOriginalItems,
-            })
-          }
-          onToggleEditMode={handleToggleEditMode}
+          onSaveEdit={onPageSave}
+          onCancelEdit={onPageCancel}
+          onToggleEditMode={onPageToggle}
         />
 
         {/* Pagination */}
         <Pagination
           currentPage={pagination.currentPage}
-          totalPages={Math.ceil(filteredSales.length / pagination.rowsPerPage)}
+          totalPages={Math.ceil(activeSales.length / pagination.rowsPerPage)}
           onPageChange={(page) =>
             setPagination((prev) => ({ ...prev, currentPage: page }))
           }
@@ -553,12 +588,12 @@ const Sales = () => {
               />
 
               <DropdownWithAddNew
-                type="iswithBottle"
-                options={withBottles}
-                setOptions={setWithBottles}
-                selectedOption={newSale.isWithBottle}
+                type="priceTier"
+                options={priceTierOptions}
+                setOptions={setPriceTierOptions}
+                selectedOption={newSale.priceTier}
                 setSelectedOption={(value) =>
-                  setNewSale((prev) => ({ ...prev, isWithBottle: value }))
+                  setNewSale((prev) => ({ ...prev, priceTier: value }))
                 }
               />
 

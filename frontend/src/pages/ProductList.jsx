@@ -604,7 +604,7 @@ const ProductList = () => {
 
   // pagination
   const { currentPage, rowsPerPage } = pagination;
-  const activeProducts = filters.searchName ? filteredProducts : products;
+  const activeProducts = filteredProducts;
   const startIndex = (currentPage - 1) * rowsPerPage;
   const paginatedProducts = activeProducts.slice(
     startIndex,
