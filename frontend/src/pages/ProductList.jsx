@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { FaPlus, FaSave, FaMinus, FaSearch } from "react-icons/fa"; // Icons for buttons
+import { FaPlus, FaSave, FaMinus, FaSearch, FaDownload } from "react-icons/fa"; // Icons for buttons
 import DropdownWithAddNew from "../components/DropDownWithAddNew";
 import Filters from "../components/Filters.jsx";
 import Pagination from "../components/Pagination";
@@ -505,6 +505,42 @@ const ProductList = () => {
         ),
     };
   });
+  
+  const API_URL = import.meta.env.VITE_API_URL;
+
+  const barcodeColumn = {
+  id: "barcode",
+  header: "Barcode",
+  // Make accessor a function that returns your image+link JSX
+  accessor: (row) =>
+    row.productId ? (
+      <div style={{ textAlign: "center" }}>
+        <img
+          src={`${API_URL}/api/barcode/${row.productId}`}
+          alt={`Barcode for ${row.productId}`}
+          style={{ width: 120, marginBottom: 0 }}
+        />
+        <br />
+        {/* download attribute makes the link a download */}
+        <a
+          href={`${API_URL}/api/barcode/${row.productId}`}
+          download={`${row.productId}.png`}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: 12,
+            color: '#c5c6c7',
+            textDecoration: 'none',
+          }}
+        >
+          <FaDownload/>
+        </a>
+      </div>
+    ) : null,
+  type: "custom",
+  isEditable: false,
+};
 
   const productColumns = [
     ...baseColumns,
@@ -512,6 +548,7 @@ const ProductList = () => {
       header: "Prices",
       columns: priceColumns,
     },
+    barcodeColumn,
   ];
 
   const onPageEdit = (pageIndex, column, rawValue, isNew) => {

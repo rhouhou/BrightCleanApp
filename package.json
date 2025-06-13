@@ -17,6 +17,7 @@
     "@fortawesome/react-fontawesome": "^0.2.2",
     "antd": "^5.22.2",
     "bcryptjs": "^2.4.3",
+    "bwip-js": "^4.6.0",
     "chart.js": "^4.4.6",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",

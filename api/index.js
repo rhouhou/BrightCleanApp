@@ -9,6 +9,7 @@ import materialRoutes from "./routes/material.routes.js";
 import recipeRoutes from "./routes/recipe.routes.js";
 import userRoutes from "./routes/user.routes.js";
 import authRoutes from "./routes/auth.routes.js";
+import barcodeRoutes from './routes/barcode.routes.js';
 
 dotenv.config();
 
@@ -32,6 +33,7 @@ app.use("/api/materials", materialRoutes);
 app.use("/api/recipes", recipeRoutes);
 app.use("/api/user", userRoutes);
 app.use("/api/auth", authRoutes);
+app.use('/api/barcode', barcodeRoutes);
 
 // Global error handling middleware
 app.use((err, req, res, next) => {
