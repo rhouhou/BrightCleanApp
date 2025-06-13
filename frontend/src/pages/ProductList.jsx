@@ -518,7 +518,7 @@ const ProductList = () => {
         <img
           src={`${API_URL}/api/barcode/${row.productId}`}
           alt={`Barcode for ${row.productId}`}
-          style={{ width: 120, marginBottom: 0 }}
+          style={{ display: 'inline-flex', width: 120, marginBottom: 0 }}
         />
         <br />
         {/* download attribute makes the link a download */}
