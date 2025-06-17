@@ -61,9 +61,8 @@ const ProductList = () => {
     "Handwash",
     "Laundry Detergent",
     "Floor Cleaner",
-    "Dish Soap",
-    "Odex Cleaner",
-    "Flash Cleaner",
+    "Odex/Bleach",
+    "Flash/Toilet Cleaner",
   ]);
   const [scents, setScents] = useState([
     "Amarij",
@@ -120,6 +119,28 @@ const ProductList = () => {
               : { tier: value, amount: 0, currency };
           }),
         }));
+
+        const fetchedCategories = Array.from(
+          new Set(productData.map((p) => p.category).filter(Boolean))
+        );
+
+        const fetchedScents = Array.from(
+          new Set(productData.map((p) => p.scent).filter(Boolean))
+        );
+        const fetchedColors = Array.from(
+          new Set(productData.map((p) => p.color).filter(Boolean))
+        );
+
+        setCategories((prev) =>
+          Array.from(new Set([...prev, ...fetchedCategories]))
+        );
+
+        setScents((prev) =>
+          Array.from(new Set([...prev, ...fetchedScents]))
+        );
+        setColors((prev) =>
+          Array.from(new Set([...prev, ...fetchedColors]))
+        );
 
         setProducts((prevProducts) => {
           const updatedProducts = formattedProducts.map((mat) => {
@@ -376,17 +397,7 @@ const ProductList = () => {
       setProducts((prev) => [savedProduct, ...prev]);
 
       // Reset the form
-      setNewProduct({
-        productId: "",
-        category: "",
-        scent: "",
-        color: "",
-        productname: "",
-        bottlesize: "",
-        bottlecost: "",
-        cost: "",
-        totalcost: "",
-      });
+      setNewProduct(initialProduct());
 
       setShowValidationError(false);
       setIsFormVisible(false); // Collapse the form after saving
@@ -516,14 +527,14 @@ const ProductList = () => {
     row.productId ? (
       <div style={{ textAlign: "center" }}>
         <img
-          src={`${API_URL}/api/barcode/${row.productId}`}
+          src={`${API_URL}/api/barcode/${encodeURIComponent(row.productId)}`}
           alt={`Barcode for ${row.productId}`}
           style={{ display: 'inline-flex', width: 120, marginBottom: 0 }}
         />
         <br />
         {/* download attribute makes the link a download */}
         <a
-          href={`${API_URL}/api/barcode/${row.productId}`}
+          href={`${API_URL}/api/barcode/${encodeURIComponent(row.productId)}`}
           download={`${row.productId}.png`}
           style={{
             display: 'inline-flex',
