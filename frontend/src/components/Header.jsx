@@ -1,24 +1,37 @@
-import React, { useState } from "react";
-import { Link, NavLink } from "react-router-dom";
+import { useState, useRef, useEffect } from "react";
+import { NavLink, useNavigate } from "react-router-dom";
 import {
   FaChartPie,
-  FaBox,
-  FaChartLine,
   FaBoxes,
-  FaBookOpen,
   FaWallet,
-  FaFileInvoiceDollar,
-  FaSearch,
   FaSignInAlt,
-  FaUser,
   FaChevronDown,
-  FaCogs,
 } from "react-icons/fa";
-import { useSelector } from "react-redux";
+import { useSelector, useDispatch } from "react-redux";
+import { logout } from "../redux/user/userSlice";
 
 const Header = () => {
   const { currentUser } = useSelector((state) => state.user);
   const [searchTerm, setSearchTerm] = useState("");
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef();
+  const dispatch = useDispatch();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (menuRef.current && !menuRef.current.contains(e.target)) {
+        setMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const handleLogout = () => {
+    dispatch(logout());
+    navigate("/login");
+  };
 
   return (
     <header className="header-container">
@@ -40,7 +53,7 @@ const Header = () => {
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
-          <button>
+          <button type="button">
             <FaChevronDown className="text-slate-600" />
           </button>
         </form>
@@ -91,29 +104,71 @@ const Header = () => {
           </div>
         </div>
 
-        {/* User/Profile */}
-        <NavLink
-          to="/profile"
-          className="nav-link"
-          style={({ isActive }) => ({
-            display: "flex",
-            alignItems: "center",
-            gap: "7px",
-            color: isActive ? "#7f8c8d" : "#7dd3fc",
-            textDecoration: "none",
-            marginRight: "40px",
-          })}
-        >
+        {/* Profile/Login */}
+        <div className="relative" ref={menuRef} style={{ marginRight: "40px" }}>
           {currentUser ? (
-            <img
-              className="rounded-full h-7 w-7 object-cover"
-              src={currentUser.avatar}
-              alt="profile"
-            />
+            <>
+              <img
+                className="rounded-full h-7 w-7 object-cover cursor-pointer"
+                src={currentUser.avatar || "/default-avatar.png"}
+                alt="profile"
+                onClick={() => setMenuOpen((prev) => !prev)}
+              />
+              {menuOpen && (
+                <div className="absolute right-0 mt-2 w-60 bg-white shadow-lg rounded-2xl border border-gray-200 p-3 z-50">
+                  <div className="flex items-center gap-3 border-b pb-3">
+                    <img
+                      src={currentUser.avatar || "/default-avatar.png"}
+                      alt="avatar"
+                      className="h-10 w-10 rounded-full object-cover"
+                    />
+                    <div>
+                      <p className="font-semibold text-xs text-gray-500">{currentUser.username}</p>
+                      <p className="text-xs text-gray-500">{currentUser.email}</p>
+                    </div>
+                  </div>
+
+                  <div className="mt-3 flex flex-col gap-2 text-sm">
+                    <button
+                      onClick={() => {
+                        setMenuOpen(false);
+                        navigate("/profile");
+                      }}
+                      className="hover:bg-gray-100 p-2 rounded-lg text-left text-gray-500"
+                    >
+                      Edit Profile
+                    </button>
+                    <button
+                      onClick={() => {
+                        setMenuOpen(false);
+                        navigate("/settings");
+                      }}
+                      className="hover:bg-gray-100 p-2 rounded-lg text-left text-gray-500"
+                    >
+                      Settings
+                    </button>
+                    <button
+                      onClick={handleLogout}
+                      className="text-red-500 hover:bg-red-50 p-2 rounded-lg text-left"
+                    >
+                      Logout
+                    </button>
+                  </div>
+                </div>
+              )}
+            </>
           ) : (
-            <FaSignInAlt size={18} title="Login Section" />
+            <NavLink
+              to="/login"
+              className="flex items-center gap-2 text-sky-500"
+              style={{ textDecoration: "none" }}
+            >
+              <FaSignInAlt size={18} title="Login Section" />
+              <span>Login</span>
+            </NavLink>
           )}
-        </NavLink>
+
+        </div>
       </div>
     </header>
   );
