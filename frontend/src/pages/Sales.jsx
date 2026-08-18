@@ -11,7 +11,6 @@ import {
   applyFilters,
 } from "../utils/generalUtils.js";
 import ItemsTable from "../components/ItemsTable";
-import { parse } from "dotenv";
 
 const Sales = () => {
   const initialSale = () => ({
@@ -23,6 +22,7 @@ const Sales = () => {
     quantity: 0,
     unitprice: 0,
     totalamount: 0,
+    exchangeRate: 90000,
   });
 
   const [newSale, setNewSale] = useState(initialSale());
@@ -34,7 +34,7 @@ const Sales = () => {
   const [priceTierOptions, setPriceTierOptions] = useState([
     "retail_with_bottle",
     "retail_without_bottle",
-    "Wholesale_schools",
+    "wholesale_schools",
     "wholesale_restaurants",
   ]);
   const [filters, setFilters] = useState({
@@ -106,7 +106,8 @@ const Sales = () => {
       sale.businessType &&
       sale.productname &&
       sale.priceTier &&
-      sale.quantity
+      parseFloat(sale.quantity) > 0 &&
+      parseFloat(sale.exchangeRate) > 0
     );
   };
 
@@ -181,7 +182,7 @@ const Sales = () => {
       // Recalculate dependent fields for new sales
       if (field === "priceTier" || field === "productname") {
         const selectedProduct = products.find(
-          (p) => p.productname === sale.productname
+          (p) => p.productname === updated.productname
         );
 
         if (selectedProduct) {
@@ -201,7 +202,6 @@ const Sales = () => {
 
       updateList[absoluteIndex] = updated;
       isNew ? setNewSales(updateList) : setSales(updateList);
-      setNewSales(updatedNewSales);
   };
 
   const handleSaveEdit = (sale, index, isNew) => {
@@ -297,6 +297,7 @@ const Sales = () => {
         quantity: 0,
         unitprice: 0,
         totalamount: 0,
+        exchangeRate: 90000,
       });
 
       setShowValidationError(false);
@@ -344,6 +345,12 @@ const Sales = () => {
     {
       header: "Quantity",
       accessor: "quantity",
+      isEditable: true,
+      type: "number",
+    },
+    {
+      header: "Exchange Rate",
+      accessor: "exchangeRate",
       isEditable: true,
       type: "number",
     },

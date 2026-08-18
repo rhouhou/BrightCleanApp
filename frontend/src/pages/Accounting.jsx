@@ -2,6 +2,8 @@ import React, { useEffect, useState } from "react";
 import { fetchItems } from "../utils/generalUtils";
 import ItemsTable from "../components/ItemsTable";
 
+const DEFAULT_EXCHANGE_RATE = 90000;
+
 const Accounting = () => {
   const [accountingData, setAccountingData] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -9,21 +11,24 @@ const Accounting = () => {
   useEffect(() => {
     const fetchAccountingData = async () => {
       setLoading(true);
+
       try {
-        const [expenses, sales, products] = await Promise.all([
+        const [expenses, sales] = await Promise.all([
           fetchItems("/api/expenses"),
           fetchItems("/api/sales"),
-          fetchItems("/api/products"),
         ]);
 
         const aggregatedData = aggregateAccountingData(
           expenses,
-          sales,
-          products
+          sales
         );
+
         setAccountingData(aggregatedData);
       } catch (error) {
-        console.error("Error fetching accounting data:", error);
+        console.error(
+          "Error fetching accounting data:",
+          error
+        );
       } finally {
         setLoading(false);
       }
@@ -41,69 +46,70 @@ const Accounting = () => {
       header: "Month",
       accessor: "month",
       isEditable: false,
-      type: "number",
     },
     {
       header: "Year",
       accessor: "year",
       isEditable: false,
-      type: "number",
     },
     {
-      header: "Total Purchases & Supplies",
-      accessor: "totalPurchasesAndSupplies",
+      header: "Total Goods",
+      accessor: "totalGoods",
       isEditable: false,
-      type: "number",
     },
     {
-      header: "Regular Facility Expenses",
-      accessor: "regularFacilityExpenses",
+      header: "Regular Expenses",
+      accessor: "regularExpenses",
       isEditable: false,
-      type: "number",
     },
     {
-      header: "Irregular Facility Expenses",
-      accessor: "irregularFacilityExpenses",
+      header: "Irregular Expenses",
+      accessor: "irregularExpenses",
       isEditable: false,
-      type: "number",
     },
     {
       header: "Utilities",
       accessor: "utilities",
       isEditable: false,
-      type: "number",
     },
     {
       header: "Revenues",
       accessor: "revenues",
       isEditable: false,
-      type: "number",
+    },
+    {
+      header: "Gross Profit",
+      accessor: "grossProfit",
+      isEditable: false,
+      getCellClassName: (value) =>
+        value < 0
+          ? "text-red-500 bg-red-100"
+          : "text-green-500 bg-green-100",
     },
     {
       header: "Cost of Goods Sold",
       accessor: "costOfGoodsSold",
       isEditable: false,
-      type: "number",
     },
     {
-      header: "General Profit Index",
-      accessor: "generalProfitIndex",
+      header: "Net Profit",
+      accessor: "netProfit",
+      isEditable: false,
       getCellClassName: (value) =>
-        value < 0 ? "text-red-500 bg-red-100" : "text-green-500 bg-green-100",
-    },
-    {
-      header: "Profit & Loss",
-      accessor: "profitAndLoss",
-      getCellClassName: (value) =>
-        value < 0 ? "text-red-500 bg-red-100" : "text-green-500 bg-green-100",
+        value < 0
+          ? "text-red-500 bg-red-100"
+          : "text-green-500 bg-green-100",
     },
   ];
 
   return (
     <>
       <div>
-        <h1 className="page-title">Accounting Overview</h1>
+        <h1 className="page-title">
+          Accounting Overview
+        </h1>
       </div>
+
       <div className="table-panel">
         <ItemsTable
           columns={accountingColumns}
@@ -117,70 +123,65 @@ const Accounting = () => {
 
 export default Accounting;
 
-const aggregateAccountingData = (expenses, sales, products) => {
-  const productCostMap = products.reduce((map, p) => {
-    map[p.productname] = parseFloat(p.totalcost || 0);
-    return map;
-  }, {});
-
+const aggregateAccountingData = (
+  expenses,
+  sales
+) => {
   const data = {};
-  const rateStats = {};
 
+  const createMonth = (month, year) => ({
+    month,
+    year,
+    totalGoods: 0,
+    regularExpenses: 0,
+    irregularExpenses: 0,
+    utilities: 0,
+    revenues: 0,
+    costOfGoodsSold: 0,
+    grossProfit: 0,
+    netProfit: 0,
+  });
+
+  // -----------------------------
+  // EXPENSES
+  // -----------------------------
   expenses.forEach((expense) => {
     const date = new Date(expense.dateOfExpense);
-    const month = date.getMonth() + 1; // Get month (0-indexed, so +1)
+    const month = date.getMonth() + 1;
     const year = date.getFullYear();
     const key = `${year}-${month}`;
-    const rate = parseFloat(expense.exchangeRate) || 0;
-
-    rateStats[key] = rateStats[key]
-      ? {
-          sum: rateStats[key].sum + rate,
-          count: rateStats[key].count + (rate > 0 ? 1 : 0),
-        }
-      : { sum: rate, count: rate > 0 ? 1 : 0 };
 
     if (!data[key]) {
-      data[key] = {
-        month,
-        year,
-        totalPurchasesAndSupplies: 0,
-        regularFacilityExpenses: 0,
-        irregularFacilityExpenses: 0,
-        utilities: 0,
-        costOfGoodsSold: 0,
-        revenues: 0,
-        generalProfitIndex: 0,
-        profitAndLoss: 0,
-      };
+      data[key] = createMonth(month, year);
     }
 
-    const amount = parseFloat(expense.paidInUSD || 0);
+    const amount =
+      parseFloat(expense.paidInUSD) || 0;
 
-    // Categorize expenses
     switch (expense.category) {
       case "Regular Facility Expenses":
-        data[key].regularFacilityExpenses += amount;
+        data[key].regularExpenses += amount;
         break;
+
       case "Irregular Facility Expenses":
-        data[key].irregularFacilityExpenses += amount;
+        data[key].irregularExpenses += amount;
         break;
+
       case "Utilities":
         data[key].utilities += amount;
         break;
+
       default:
-        data[key].totalPurchasesAndSupplies += amount;
+        // Raw materials, bottles, labels,
+        // production supplies, etc.
+        data[key].totalGoods += amount;
+        break;
     }
   });
-  // Compute average exchange rate map
-  const exchangeRateMap = Object.fromEntries(
-    Object.entries(rateStats).map(([k, { sum, count }]) => [
-      k,
-      count ? sum / count : 1,
-    ])
-  );
 
-  // Process sales data
+  // -----------------------------
+  // SALES
+  // -----------------------------
   sales.forEach((sale) => {
     const date = new Date(sale.dateOfPurchase);
     const month = date.getMonth() + 1;
@@ -188,65 +189,97 @@ const aggregateAccountingData = (expenses, sales, products) => {
     const key = `${year}-${month}`;
 
     if (!data[key]) {
-      data[key] = {
-        month,
-        year,
-        totalPurchasesAndSupplies: 0,
-        regularFacilityExpenses: 0,
-        irregularFacilityExpenses: 0,
-        utilities: 0,
-        costOfGoodsSold: 0,
-        revenues: 0,
-        generalProfitIndex: 0,
-        profitAndLoss: 0,
-      };
+      data[key] = createMonth(month, year);
     }
-    const productKey = sale.productname;
-    const rate = exchangeRateMap[key] || 1;
-    const qty = parseFloat(sale.quantity) || 0;
-    const priceLBP = parseFloat(sale.totalamount) || 0;
-    const costPerUnitLBP = productCostMap[productKey] || 0;
-    data[key].revenues += priceLBP / rate;
-    if (!costPerUnitLBP) {
+
+    // Revenue
+    const totalAmountLL =
+      parseFloat(sale.totalamount) || 0;
+
+    const exchangeRate =
+      parseFloat(sale.exchangeRate) ||
+      DEFAULT_EXCHANGE_RATE;
+
+    const revenueUSD =
+      exchangeRate > 0
+        ? totalAmountLL / exchangeRate
+        : 0;
+
+    data[key].revenues += revenueUSD;
+
+    // COGS
+    if (
+      sale.totalCostAtSaleUSD === undefined ||
+      sale.totalCostAtSaleUSD === null
+    ) {
       console.warn(
-        `No cost found for "${productKey}" in productCostMap`,
-        productCostMap
+        `Old sale ${sale.transactions} has no saved historical cost.`
       );
+    } else {
+      data[key].costOfGoodsSold +=
+        parseFloat(sale.totalCostAtSaleUSD) || 0;
     }
-    if (!qty) {
-      console.warn(`Sale has zero quantity or wrong field:`, sale);
-    }
-    data[key].costOfGoodsSold += costPerUnitLBP * qty;
   });
 
-  // Rounds a number to 2 decimals
-  const round2 = (num) => Math.round(num * 100) / 100;
+  const round2 = (number) =>
+    Math.round((number + Number.EPSILON) * 100) /
+    100;
 
-  // Final calculations per entry
-  return Object.values(data).map((e) => {
-    const GP =
-      -e.totalPurchasesAndSupplies -
-      e.regularFacilityExpenses -
-      e.irregularFacilityExpenses -
-      e.utilities +
-      e.revenues;
-    const PNL =
-      -e.regularFacilityExpenses -
-      e.irregularFacilityExpenses -
-      e.utilities -
-      e.costOfGoodsSold +
-      e.revenues;
-    return {
-      month: e.month,
-      year: e.year,
-      totalPurchasesAndSupplies: round2(e.totalPurchasesAndSupplies),
-      regularFacilityExpenses: round2(e.regularFacilityExpenses),
-      irregularFacilityExpenses: round2(e.irregularFacilityExpenses),
-      utilities: round2(e.utilities),
-      revenues: round2(e.revenues),
-      costOfGoodsSold: round2(e.costOfGoodsSold),
-      generalProfitIndex: round2(GP),
-      profitAndLoss: round2(PNL),
-    };
-  });
+  // -----------------------------
+  // FINAL ACCOUNTING
+  // -----------------------------
+  return Object.values(data)
+    .map((entry) => {
+      const grossProfit =
+        entry.revenues -
+        entry.costOfGoodsSold;
+
+      const netProfit =
+        grossProfit -
+        entry.regularExpenses -
+        entry.irregularExpenses -
+        entry.utilities;
+
+      return {
+        month: entry.month,
+        year: entry.year,
+
+        totalGoods: round2(
+          entry.totalGoods
+        ),
+
+        regularExpenses: round2(
+          entry.regularExpenses
+        ),
+
+        irregularExpenses: round2(
+          entry.irregularExpenses
+        ),
+
+        utilities: round2(
+          entry.utilities
+        ),
+
+        revenues: round2(
+          entry.revenues
+        ),
+
+        grossProfit: round2(
+          grossProfit
+        ),
+
+        costOfGoodsSold: round2(
+          entry.costOfGoodsSold
+        ),
+
+        netProfit: round2(
+          netProfit
+        ),
+      };
+    })
+    .sort(
+      (a, b) =>
+        a.year - b.year ||
+        a.month - b.month
+    );
 };
