@@ -4,6 +4,7 @@ import {
   deleteRecipe,
   updateRecipe,
   getRecipes,
+  getRecipeCostAtDate,
 } from "../controllers/recipe.controller.js";
 
 const router = express.Router();
@@ -19,5 +20,7 @@ router.put("/:id", updateRecipe);
 
 // Get all products
 router.get("/", getRecipes);
+
+router.get("/:id/cost", getRecipeCostAtDate);
 
 export default router;

@@ -27,12 +27,12 @@ export default function Login() {
         headers: {
           "Content-Type": "application/json",
         },
+        credentials: "include",
         body: JSON.stringify(formData),
       });
       const data = await response.json();
-      console.log(data);
-      if (data.success === false) {
-       dispatch(loginFailure(data.message));
+      if (!response.ok) {
+       dispatch(loginFailure(data.message || "Login failed"));
         return;
       }
       dispatch(loginSuccess(data));

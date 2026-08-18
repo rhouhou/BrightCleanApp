@@ -1,4 +1,7 @@
 import Product from "../models/product.model.js";
+import {
+  calculateProductCostAtDate,
+} from "../utils/productCost.js";
 import { errorHandler } from "../utils/error.js";
 
 export const createProduct = async (req, res) => {
@@ -48,5 +51,40 @@ export const getProducts = async (req, res) => {
     res.json(products);
   } catch (error) {
     res.status(500).json({ message: error.message });
+  }
+};
+
+export const getProductCostAtDate = async (
+  req,
+  res
+) => {
+  try {
+    const { id } = req.params;
+    const { date } = req.query;
+
+    if (!date) {
+      return res.status(400).json({
+        message: "date is required",
+      });
+    }
+
+    const result =
+      await calculateProductCostAtDate({
+        productId: id,
+        date,
+      });
+
+    return res.status(200).json(result);
+  } catch (error) {
+    console.error(
+      "Error calculating product cost:",
+      error
+    );
+
+    return res.status(500).json({
+      message:
+        "Failed to calculate product cost",
+      error: error.message,
+    });
   }
 };

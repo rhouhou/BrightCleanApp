@@ -15,7 +15,6 @@ export const getPurchaseCostAtDate = async ({
     return null;
   }
 
-  // Include the whole selected day
   asOfDate.setUTCHours(23, 59, 59, 999);
 
   const query = {
@@ -45,5 +44,48 @@ export const getPurchaseCostAtDate = async ({
     itemId: purchase.itemId,
     itemName: purchase.itemName,
     itemType: purchase.itemType,
+    unit: purchase.unit,
+    quantity: purchase.quantity,
+    totalPriceUSD: purchase.totalPriceUSD,
+  };
+};
+
+// Recipes currently store raw-material quantities in grams.
+// Therefore material purchases must be converted to $ / gram.
+export const getMaterialCostPerGramAtDate = async ({
+  materialId,
+  date,
+}) => {
+  const purchase = await getPurchaseCostAtDate({
+    itemId: materialId,
+    itemType: "material",
+    date,
+  });
+
+  if (!purchase) {
+    return null;
+  }
+
+  let costPerGramUSD;
+
+  switch (purchase.unit) {
+    case "gram":
+      costPerGramUSD = purchase.unitCostUSD;
+      break;
+
+    case "kg":
+      costPerGramUSD = purchase.unitCostUSD / 1000;
+      break;
+
+    default:
+      throw new Error(
+        `Material ${materialId} uses unit "${purchase.unit}". ` +
+        `Recipes currently require material purchases in gram or kg.`
+      );
+  }
+
+  return {
+    ...purchase,
+    costPerGramUSD,
   };
 };

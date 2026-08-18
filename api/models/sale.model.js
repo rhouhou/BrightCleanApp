@@ -35,6 +35,17 @@ const saleSchema = new mongoose.Schema(
       required: true,
     },
 
+    productId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Product",
+      required: true,
+    },
+
+    productCode: {
+      type: String,
+      required: true,
+    },
+
     quantity: {
       type: Number,
       required: true,
@@ -73,6 +84,34 @@ const saleSchema = new mongoose.Schema(
     totalCostAtSaleUSD: {
       type: Number,
       required: true,
+      min: 0,
+    },
+
+    costBasis: {
+      type: String,
+      enum: [
+        "packaged_unit",
+        "refill_bottle_volume",
+        "refill_per_litre",
+      ],
+      required: true,
+    },
+
+    contentCostAtSaleUSD: {
+      type: Number,
+      required: true,
+      min: 0,
+    },
+
+    bottleCostAtSaleUSD: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+
+    labelCostAtSaleUSD: {
+      type: Number,
+      default: 0,
       min: 0,
     },
   },

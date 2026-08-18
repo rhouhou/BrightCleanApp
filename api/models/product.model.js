@@ -55,6 +55,14 @@ const productSchema = new mongoose.Schema(
       required: true,
       min: 0,
     },
+    bottlePurchaseItemId: {
+      type: String,
+      default: "",
+    },
+    labelPurchaseItemId: {
+      type: String,
+      default: "",
+    },
     bottlecost: {
       type: Number,
       required: true,

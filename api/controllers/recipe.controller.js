@@ -1,4 +1,7 @@
 import Recipe from "../models/recipe.model.js";
+import {
+  calculateRecipeCostAtDate,
+} from "../utils/recipeCost.js";
 import { errorHandler } from "../utils/error.js";
 
 export const createRecipe = async (req, res) => {
@@ -48,5 +51,40 @@ export const getRecipes = async (req, res) => {
     res.json(recipes);
   } catch (error) {
     res.status(500).json({ message: error.message });
+  }
+};
+
+export const getRecipeCostAtDate = async (
+  req,
+  res
+) => {
+  try {
+    const { id } = req.params;
+    const { date } = req.query;
+
+    if (!date) {
+      return res.status(400).json({
+        message: "date is required",
+      });
+    }
+
+    const result =
+      await calculateRecipeCostAtDate({
+        recipeId: id,
+        date,
+      });
+
+    return res.status(200).json(result);
+  } catch (error) {
+    console.error(
+      "Error calculating recipe cost:",
+      error
+    );
+
+    return res.status(500).json({
+      message:
+        "Failed to calculate recipe cost",
+      error: error.message,
+    });
   }
 };

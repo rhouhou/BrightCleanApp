@@ -1,6 +1,7 @@
 import express from "express";
 import mongoose from "mongoose";
 import dotenv from "dotenv";
+import cookieParser from "cookie-parser";
 import productRoutes from "./routes/product.routes.js";
 import saleRoutes from "./routes/sale.routes.js";
 import expenseRoutes from "./routes/expense.routes.js";
@@ -11,11 +12,16 @@ import userRoutes from "./routes/user.routes.js";
 import authRoutes from "./routes/auth.routes.js";
 import barcodeRoutes from './routes/barcode.routes.js';
 import purchaseRoutes from "./routes/purchase.routes.js";
+import {
+  verifyStaff,
+  requireSection,
+} from "./middleware/auth.middleware.js";
 
 dotenv.config();
 
 const app = express();
 app.use(express.json());
+app.use(cookieParser());
 
 mongoose
   .connect(process.env.MONGO)
@@ -26,16 +32,17 @@ mongoose
     console.log(err);
   });
 
-app.use("/api/products", productRoutes);
-app.use("/api/sales", saleRoutes);
-app.use("/api/expenses", expenseRoutes);
-app.use("/api/accounting", accountingRoutes);
-app.use("/api/materials", materialRoutes);
-app.use("/api/recipes", recipeRoutes);
-app.use("/api/user", userRoutes);
 app.use("/api/auth", authRoutes);
-app.use('/api/barcode', barcodeRoutes);
-app.use("/api/purchases", purchaseRoutes);
+
+app.use("/api/products", verifyStaff, requireSection("products"), productRoutes);
+app.use("/api/sales", verifyStaff, requireSection("sales"), saleRoutes);
+app.use("/api/expenses", verifyStaff, requireSection("expenses"), expenseRoutes);
+app.use("/api/accounting", verifyStaff, requireSection("accounting"), accountingRoutes);
+app.use("/api/materials", verifyStaff, requireSection("materials"), materialRoutes);
+app.use("/api/recipes", verifyStaff, requireSection("recipes"), recipeRoutes);
+app.use("/api/purchases", verifyStaff, requireSection("purchases"), purchaseRoutes);
+app.use("/api/user", verifyStaff, requireSection("users"), userRoutes);
+app.use('/api/barcode', verifyStaff, requireSection("products"), barcodeRoutes);
 
 // Global error handling middleware
 app.use((err, req, res, next) => {
