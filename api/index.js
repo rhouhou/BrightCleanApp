@@ -10,6 +10,7 @@ import recipeRoutes from "./routes/recipe.routes.js";
 import userRoutes from "./routes/user.routes.js";
 import authRoutes from "./routes/auth.routes.js";
 import barcodeRoutes from './routes/barcode.routes.js';
+import purchaseRoutes from "./routes/purchase.routes.js";
 
 dotenv.config();
 
@@ -34,6 +35,7 @@ app.use("/api/recipes", recipeRoutes);
 app.use("/api/user", userRoutes);
 app.use("/api/auth", authRoutes);
 app.use('/api/barcode', barcodeRoutes);
+app.use("/api/purchases", purchaseRoutes);
 
 // Global error handling middleware
 app.use((err, req, res, next) => {
