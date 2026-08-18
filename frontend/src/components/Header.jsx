@@ -28,9 +28,18 @@ const Header = () => {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const handleLogout = () => {
-    dispatch(logout());
-    navigate("/login");
+  const handleLogout = async () => {
+    try {
+      await fetch("/api/auth/logout", {
+        method: "POST",
+        credentials: "include",
+      });
+    } catch (error) {
+      console.error("Logout error:", error);
+    } finally {
+      dispatch(logout());
+      navigate("/staff/login");
+    }
   };
 
   return (
@@ -39,7 +48,7 @@ const Header = () => {
         className="flex justify-between items-center max-w-6xl mx-auto p-1 gap-3"
         style={{ marginLeft: "40px" }}
       >
-        <NavLink to="/">
+        <NavLink to="/staff">
           <h1 className="font-bold text-sm sm:text-xl flex flex-wrap">
             <span className="text-sky-500">Bright</span>
             <span className="text-sky-700">Clean</span>
@@ -62,7 +71,7 @@ const Header = () => {
       <div className="top-nav">
         {/* Dashboard */}
         <NavLink
-          to="/"
+          to="/staff"
           className="nav-link"
           style={({ isActive }) => ({
             display: "flex",
@@ -84,9 +93,9 @@ const Header = () => {
             <FaChevronDown size={14} />
           </button>
           <div className="dropdown-content">
-            <NavLink to="/product-list">Products</NavLink>
-            <NavLink to="/materials">Materials</NavLink>
-            <NavLink to="/recipes">Recipes</NavLink>
+            <NavLink to="/staff/products">Products</NavLink>
+            <NavLink to="/staff/materials">Materials</NavLink>
+            <NavLink to="/staff/recipes">Recipes</NavLink>
           </div>
         </div>
 
@@ -98,9 +107,9 @@ const Header = () => {
             <FaChevronDown size={14} />
           </button>
           <div className="dropdown-content">
-            <NavLink to="/sales">Sales</NavLink>
-            <NavLink to="/expenses">Expenses</NavLink>
-            <NavLink to="/accounting">Accounting</NavLink>
+            <NavLink to="/staff/sales">Sales</NavLink>
+            <NavLink to="/staff/expenses">Expenses</NavLink>
+            <NavLink to="/staff/accounting">Accounting</NavLink>
           </div>
         </div>
 
@@ -132,7 +141,7 @@ const Header = () => {
                     <button
                       onClick={() => {
                         setMenuOpen(false);
-                        navigate("/profile");
+                        navigate("/staff/profile");
                       }}
                       className="hover:bg-gray-100 p-2 rounded-lg text-left text-gray-500"
                     >

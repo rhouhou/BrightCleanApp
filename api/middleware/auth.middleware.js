@@ -5,7 +5,7 @@ import { errorHandler } from "../utils/error.js";
 export const verifyStaff = async (req, res, next) => {
   try {
 
-    const token = req.cookies?.access_token;
+    const token = req.cookies?.brightclean_staff_token;
 
     if (!token) {
       return next(
@@ -28,7 +28,7 @@ export const verifyStaff = async (req, res, next) => {
       );
     }
 
-    if (!user.isActive === false) {
+    if (user.isActive === false) {
       return next(
         errorHandler(403, "This account is disabled")
       );

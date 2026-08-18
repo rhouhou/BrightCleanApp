@@ -16,6 +16,7 @@ import {
   verifyStaff,
   requireSection,
 } from "./middleware/auth.middleware.js";
+import inventoryRoutes from "./routes/inventory.routes.js";
 
 dotenv.config();
 
@@ -43,6 +44,7 @@ app.use("/api/recipes", verifyStaff, requireSection("recipes"), recipeRoutes);
 app.use("/api/purchases", verifyStaff, requireSection("purchases"), purchaseRoutes);
 app.use("/api/user", verifyStaff, requireSection("users"), userRoutes);
 app.use('/api/barcode', verifyStaff, requireSection("products"), barcodeRoutes);
+app.use('/api/inventory', verifyStaff, requireSection("inventory"), inventoryRoutes);
 
 // Global error handling middleware
 app.use((err, req, res, next) => {

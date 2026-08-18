@@ -13,7 +13,7 @@ const setAuthCookie = (res, user) => {
     }
   );
 
-  res.cookie("access_token", token, {
+  res.cookie("brightclean_staff_token", token, {
     httpOnly: true,
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",
@@ -88,10 +88,17 @@ export const me = async (req, res) => {
 };
 
 export const logout = async (req, res) => {
+  res.clearCookie("brightclean_staff_token", {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: false,
+  });
+
+  // Remove old cookie too
   res.clearCookie("access_token", {
     httpOnly: true,
     sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
+    secure: false,
   });
 
   return res.status(200).json({
